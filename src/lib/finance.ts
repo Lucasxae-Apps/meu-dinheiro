@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type Entrada = { id: string; nome: string; valor: number; oficial: boolean; nota?: string };
+export type Entrada = { id: string; nome: string; valor: number; oficial: boolean; nota?: string | undefined };
 export type Investimento = {
   id: string;
   nome: string;
