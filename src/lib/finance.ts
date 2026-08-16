@@ -133,7 +133,7 @@ export const brl = (v: number) =>
 export const mesAtual = () => new Date().toISOString().slice(0, 7);
 
 export function nomeMes(ym: string) {
-  const [y, m] = ym.split("-").map(Number);
+  const [y, m] = ym.split("-").map(Number) as [number, number];
   return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 }
 
