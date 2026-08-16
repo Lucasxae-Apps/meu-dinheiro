@@ -6,31 +6,31 @@ export type Investimento = {
   nome: string;
   aporteMensal: number;
   acumulado: number;
-  alvo?: number;
-  origemAluguel?: boolean;
-  nota?: string;
+  alvo?: number | undefined;
+  origemAluguel?: boolean | undefined;
+  nota?: string | undefined;
 };
 export type ContaFixa = {
   id: string;
   nome: string;
   valor: number;
   pago: boolean;
-  pagoEm?: string;
-  nota?: string;
+  pagoEm?: string | undefined;
+  nota?: string | undefined;
 };
 export type Lancamento = {
   id: string;
   data: string; // yyyy-mm-dd
   categoria: string;
   valor: number;
-  nota?: string;
+  nota?: string | undefined;
 };
 export type DespesaIrregular = {
   id: string;
   descricao: string;
-  valor?: number;
-  data?: string;
-  nota?: string;
+  valor?: number | undefined;
+  data?: string | undefined;
+  nota?: string | undefined;
 };
 
 export type FinanceState = {
