@@ -39,7 +39,7 @@ function Index() {
 
   const usadoPct = t.livre > 0 ? (t.gasto / t.livre) * 100 : 0;
   const metaPct = (t.acumuladoMeta / META_GRANDE) * 100;
-  const aporteTotal = t.investimentos;
+  const aporteTotal = t.aporteMeta;
   const prazo = formatarPrazo(mesesParaMeta(t.acumuladoMeta, aporteTotal, state.rendimentoMensal));
 
   return (
