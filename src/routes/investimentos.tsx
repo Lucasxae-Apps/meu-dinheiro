@@ -34,7 +34,7 @@ function Investimentos() {
   const { state, update } = useFinance();
   const t = totais(state);
   const metaPct = (t.acumuladoMeta / META_GRANDE) * 100;
-  const prazo = formatarPrazo(mesesParaMeta(t.acumuladoMeta, t.investimentos, state.rendimentoMensal));
+  const prazo = formatarPrazo(mesesParaMeta(t.acumuladoMeta, t.aporteMeta, state.rendimentoMensal));
 
   const setInv = (id: string, patch: Partial<{ aporteMensal: number; acumulado: number; alvo: number }>) =>
     update((s) => ({
