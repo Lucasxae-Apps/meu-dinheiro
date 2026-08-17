@@ -88,9 +88,16 @@ function Index() {
       >
         <div className="space-y-4 rounded-xl border bg-card p-4">
           <div className="flex items-baseline justify-between">
-            <span className="text-xs text-muted-foreground">Total investido</span>
-            <span className="num text-2xl font-semibold">{brl(t.acumuladoTotal)}</span>
+            <span className="text-xs text-muted-foreground">
+              {state.incluirAluguelNaMeta ? "Total investido" : "Investido sem o aluguel"}
+            </span>
+            <span className="num text-2xl font-semibold">{brl(t.acumuladoMeta)}</span>
           </div>
+          {!state.incluirAluguelNaMeta && (
+            <p className="num text-xs text-muted-foreground">
+              Total geral com o aluguel: {brl(t.acumuladoTotal)}
+            </p>
+          )}
           <Bar value={metaPct} />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span className="num">{metaPct.toFixed(1)}% da meta</span>
