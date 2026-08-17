@@ -70,17 +70,21 @@ function Lancamentos() {
   function adicionar(e: React.FormEvent) {
     e.preventDefault();
     const v = Number(valor.replace(",", "."));
-    if (!v || !categoria.trim()) return;
+    const digitada = categoria.trim();
+    if (!v || !digitada) return;
+    // reaproveita a grafia já usada antes ("Cards F1" não vira uma categoria nova)
+    const existente = categorias.find((c) => c.toLowerCase() === digitada.toLowerCase());
     update((s) => ({
       ...s,
       lancamentos: [
         ...s.lancamentos,
-        { id: uid(), data, categoria: categoria.trim(), valor: v, nota: nota.trim() || undefined },
+        { id: uid(), data, categoria: existente ?? digitada, valor: v, nota: nota.trim() || undefined },
       ],
     }));
     setValor("");
     setNota("");
   }
+
 
   function salvarEdicao() {
     if (!rascunho) return;
