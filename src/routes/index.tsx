@@ -130,7 +130,8 @@ function Index() {
             <span className="num font-semibold">{brl(t.mesada)}</span>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Cobre nutricionista (R$ 172,00) e parte do hobby. Não entra em entradas nem em nenhum cálculo.
+            Cobre a nutricionista (R$ 172,00) e o hobby inteiro (R$ 300,00) — sobram R$ 28,00. Não entra em
+            entradas nem em nenhum cálculo do teto.
           </p>
         </div>
       </Section>
