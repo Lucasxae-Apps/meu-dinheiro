@@ -144,16 +144,21 @@ export function totais(state: FinanceState, mes = mesAtual()) {
   const contas = state.contas.reduce((a, c) => a + c.valor, 0);
   const livre = entradasOficiais - investimentos - contas;
   const doMes = state.lancamentos.filter((l) => l.data.slice(0, 7) === mes);
-  const gasto = doMes.reduce((a, l) => a + l.valor, 0);
-  const gastoHobby = doMes
-    .filter((l) => l.categoria.trim().toLowerCase() === HOBBY_CATEGORIA)
-    .reduce((a, l) => a + l.valor, 0);
+  const ehHobby = (l: Lancamento) => l.categoria.trim().toLowerCase() === HOBBY_CATEGORIA;
+  const gastoHobby = doMes.filter(ehHobby).reduce((a, l) => a + l.valor, 0);
+  // Hobby sai da mesada, então não consome o teto do "livre pra gastar".
+  const gasto = doMes.filter((l) => !ehHobby(l)).reduce((a, l) => a + l.valor, 0);
+  const gastoTotal = gasto + gastoHobby;
 
   const acumuladoTotal = state.investimentos.reduce((a, i) => a + i.acumulado, 0);
   const acumuladoAluguel = state.investimentos
     .filter((i) => i.origemAluguel)
     .reduce((a, i) => a + i.acumulado, 0);
+  const aporteAluguel = state.investimentos
+    .filter((i) => i.origemAluguel)
+    .reduce((a, i) => a + i.aporteMensal, 0);
   const acumuladoMeta = state.incluirAluguelNaMeta ? acumuladoTotal : acumuladoTotal - acumuladoAluguel;
+  const aporteMeta = state.incluirAluguelNaMeta ? investimentos : investimentos - aporteAluguel;
 
   return {
     entradasOficiais,
@@ -163,14 +168,18 @@ export function totais(state: FinanceState, mes = mesAtual()) {
     comprometido: investimentos + contas,
     livre,
     gasto,
+    gastoTotal,
     restante: livre - gasto,
     gastoHobby,
     lancamentosDoMes: doMes,
     acumuladoTotal,
     acumuladoAluguel,
+    aporteAluguel,
     acumuladoMeta,
+    aporteMeta,
   };
 }
+
 
 /** Meses até bater a meta grande, com aportes mensais + rendimento composto. */
 export function mesesParaMeta(atual: number, aporte: number, taxa: number, alvo = META_GRANDE) {
