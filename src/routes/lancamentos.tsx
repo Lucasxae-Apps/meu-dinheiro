@@ -121,17 +121,30 @@ function Lancamentos() {
           <Label htmlFor="categoria">Categoria</Label>
           <Input
             id="categoria"
-            list="categorias"
+            autoComplete="off"
             placeholder="ex: cards f1, mercado, rolê"
             value={categoria}
             onChange={(e) => setCategoria(e.target.value)}
           />
-          <datalist id="categorias">
-            {categorias.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          {sugestoes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {sugestoes.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategoria(c)}
+                  className="rounded-full border bg-secondary px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Gastos em “cards f1” contam como hobby: saem da mesada e não descontam do teto do mês.
+          </p>
         </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="nota">Nota (opcional)</Label>
           <Input id="nota" value={nota} onChange={(e) => setNota(e.target.value)} />
