@@ -40,10 +40,21 @@ function Lancamentos() {
 
   const t = totais(state, mes);
 
-  const categorias = useMemo(
-    () => Array.from(new Set(state.lancamentos.map((l) => l.categoria))).sort(),
-    [state.lancamentos],
-  );
+  const categorias = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const c of ["cards f1", ...state.lancamentos.map((l) => l.categoria)]) {
+      const chave = c.trim().toLowerCase();
+      if (chave && !mapa.has(chave)) mapa.set(chave, c.trim());
+    }
+    return Array.from(mapa.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [state.lancamentos]);
+
+  const sugestoes = useMemo(() => {
+    const q = categoria.trim().toLowerCase();
+    const base = q ? categorias.filter((c) => c.toLowerCase().includes(q)) : categorias;
+    return base.filter((c) => c.toLowerCase() !== q).slice(0, 6);
+  }, [categorias, categoria]);
+
 
   const lista = useMemo(
     () =>
