@@ -106,8 +106,8 @@ function Index() {
           <div className="flex items-center justify-between gap-4 rounded-lg bg-surface p-3">
             <div>
               <p className="text-xs font-medium">Incluir o que veio do aluguel</p>
-              <p className="text-xs text-muted-foreground">
-                {brl(t.acumuladoAluguel)} acumulados via aluguel
+              <p className="text-xs text-muted-foreground num">
+                {brl(t.acumuladoAluguel)} acumulados e {brl(t.aporteAluguel)}/mês vindos do aluguel
               </p>
             </div>
             <Switch
