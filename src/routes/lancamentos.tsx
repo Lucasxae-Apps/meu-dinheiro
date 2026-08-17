@@ -40,10 +40,21 @@ function Lancamentos() {
 
   const t = totais(state, mes);
 
-  const categorias = useMemo(
-    () => Array.from(new Set(state.lancamentos.map((l) => l.categoria))).sort(),
-    [state.lancamentos],
-  );
+  const categorias = useMemo(() => {
+    const mapa = new Map<string, string>();
+    for (const c of ["cards f1", ...state.lancamentos.map((l) => l.categoria)]) {
+      const chave = c.trim().toLowerCase();
+      if (chave && !mapa.has(chave)) mapa.set(chave, c.trim());
+    }
+    return Array.from(mapa.values()).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  }, [state.lancamentos]);
+
+  const sugestoes = useMemo(() => {
+    const q = categoria.trim().toLowerCase();
+    const base = q ? categorias.filter((c) => c.toLowerCase().includes(q)) : categorias;
+    return base.filter((c) => c.toLowerCase() !== q).slice(0, 6);
+  }, [categorias, categoria]);
+
 
   const lista = useMemo(
     () =>
@@ -59,17 +70,21 @@ function Lancamentos() {
   function adicionar(e: React.FormEvent) {
     e.preventDefault();
     const v = Number(valor.replace(",", "."));
-    if (!v || !categoria.trim()) return;
+    const digitada = categoria.trim();
+    if (!v || !digitada) return;
+    // reaproveita a grafia já usada antes ("Cards F1" não vira uma categoria nova)
+    const existente = categorias.find((c) => c.toLowerCase() === digitada.toLowerCase());
     update((s) => ({
       ...s,
       lancamentos: [
         ...s.lancamentos,
-        { id: uid(), data, categoria: categoria.trim(), valor: v, nota: nota.trim() || undefined },
+        { id: uid(), data, categoria: existente ?? digitada, valor: v, nota: nota.trim() || undefined },
       ],
     }));
     setValor("");
     setNota("");
   }
+
 
   function salvarEdicao() {
     if (!rascunho) return;
@@ -106,17 +121,30 @@ function Lancamentos() {
           <Label htmlFor="categoria">Categoria</Label>
           <Input
             id="categoria"
-            list="categorias"
+            autoComplete="off"
             placeholder="ex: cards f1, mercado, rolê"
             value={categoria}
             onChange={(e) => setCategoria(e.target.value)}
           />
-          <datalist id="categorias">
-            {categorias.map((c) => (
-              <option key={c} value={c} />
-            ))}
-          </datalist>
+          {sugestoes.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {sugestoes.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setCategoria(c)}
+                  className="rounded-full border bg-secondary px-2.5 py-1 text-xs text-muted-foreground hover:text-foreground"
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Gastos em “cards f1” contam como hobby: saem da mesada e não descontam do teto do mês.
+          </p>
         </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="nota">Nota (opcional)</Label>
           <Input id="nota" value={nota} onChange={(e) => setNota(e.target.value)} />

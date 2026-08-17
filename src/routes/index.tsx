@@ -39,7 +39,7 @@ function Index() {
 
   const usadoPct = t.livre > 0 ? (t.gasto / t.livre) * 100 : 0;
   const metaPct = (t.acumuladoMeta / META_GRANDE) * 100;
-  const aporteTotal = t.investimentos;
+  const aporteTotal = t.aporteMeta;
   const prazo = formatarPrazo(mesesParaMeta(t.acumuladoMeta, aporteTotal, state.rendimentoMensal));
 
   return (
@@ -54,7 +54,7 @@ function Index() {
           label="Já gasto"
           value={t.gasto}
           tone={t.gasto > t.livre ? "destructive" : "default"}
-          hint={`${t.lancamentosDoMes.length} lançamento(s)`}
+          hint={`${t.lancamentosDoMes.length} lançamento(s) · hobby fora do teto`}
         />
       </div>
 
@@ -70,11 +70,12 @@ function Index() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Hobby (cards F1) neste mês: <span className="num">{brl(t.gastoHobby)}</span> — referência de{" "}
-            {brl(HOBBY_REFERENCIA)}, sem limite travado.
+            Hobby (cards F1) neste mês: <span className="num">{brl(t.gastoHobby)}</span> — sai da mesada,
+            não desconta do teto. Referência de {brl(HOBBY_REFERENCIA)}, sem limite travado.
           </p>
         </div>
       </Section>
+
 
       <Section
         title="Investimentos acumulados"
@@ -87,9 +88,16 @@ function Index() {
       >
         <div className="space-y-4 rounded-xl border bg-card p-4">
           <div className="flex items-baseline justify-between">
-            <span className="text-xs text-muted-foreground">Total investido</span>
-            <span className="num text-2xl font-semibold">{brl(t.acumuladoTotal)}</span>
+            <span className="text-xs text-muted-foreground">
+              {state.incluirAluguelNaMeta ? "Total investido" : "Investido sem o aluguel"}
+            </span>
+            <span className="num text-2xl font-semibold">{brl(t.acumuladoMeta)}</span>
           </div>
+          {!state.incluirAluguelNaMeta && (
+            <p className="num text-xs text-muted-foreground">
+              Total geral com o aluguel: {brl(t.acumuladoTotal)}
+            </p>
+          )}
           <Bar value={metaPct} />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span className="num">{metaPct.toFixed(1)}% da meta</span>
@@ -98,8 +106,8 @@ function Index() {
           <div className="flex items-center justify-between gap-4 rounded-lg bg-surface p-3">
             <div>
               <p className="text-xs font-medium">Incluir o que veio do aluguel</p>
-              <p className="text-xs text-muted-foreground">
-                {brl(t.acumuladoAluguel)} acumulados via aluguel
+              <p className="text-xs text-muted-foreground num">
+                {brl(t.acumuladoAluguel)} acumulados e {brl(t.aporteAluguel)}/mês vindos do aluguel
               </p>
             </div>
             <Switch
@@ -122,7 +130,8 @@ function Index() {
             <span className="num font-semibold">{brl(t.mesada)}</span>
           </div>
           <p className="mt-2 text-xs text-muted-foreground">
-            Cobre nutricionista (R$ 172,00) e parte do hobby. Não entra em entradas nem em nenhum cálculo.
+            Cobre a nutricionista (R$ 172,00) e o hobby inteiro (R$ 300,00) — sobram R$ 28,00. Não entra em
+            entradas nem em nenhum cálculo do teto.
           </p>
         </div>
       </Section>
