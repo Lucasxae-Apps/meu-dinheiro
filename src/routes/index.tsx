@@ -54,7 +54,7 @@ function Index() {
           label="Já gasto"
           value={t.gasto}
           tone={t.gasto > t.livre ? "destructive" : "default"}
-          hint={`${t.lancamentosDoMes.length} lançamento(s)`}
+          hint={`${t.lancamentosDoMes.length} lançamento(s) · hobby fora do teto`}
         />
       </div>
 
@@ -70,11 +70,12 @@ function Index() {
             </span>
           </div>
           <p className="text-xs text-muted-foreground">
-            Hobby (cards F1) neste mês: <span className="num">{brl(t.gastoHobby)}</span> — referência de{" "}
-            {brl(HOBBY_REFERENCIA)}, sem limite travado.
+            Hobby (cards F1) neste mês: <span className="num">{brl(t.gastoHobby)}</span> — sai da mesada,
+            não desconta do teto. Referência de {brl(HOBBY_REFERENCIA)}, sem limite travado.
           </p>
         </div>
       </Section>
+
 
       <Section
         title="Investimentos acumulados"
