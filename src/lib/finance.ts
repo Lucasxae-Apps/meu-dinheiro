@@ -201,3 +201,15 @@ export function formatarPrazo(meses: number | null) {
   if (!anos) return `${meses} ${meses === 1 ? "mês" : "meses"}`;
   return `${anos}a ${resto}m`;
 }
+
+/** Converte string digitada (com vírgula ou ponto) para número. */
+export function parseValor(str: string): number {
+  // Remove pontos de milhar e troca vírgula por ponto decimal
+  const limpo = str.replace(/\./g, "").replace(",", ".");
+  return Number(limpo) || 0;
+}
+
+/** Formata número para exibição em input (com vírgula decimal, sem símbolo). */
+export function formatValorInput(valor: number): string {
+  return valor.toFixed(2).replace(".", ",");
+}

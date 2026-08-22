@@ -1,15 +1,28 @@
 import { createFileRoute } from "@tanstack/react-router";
+import { useState } from "react";
+import { Loader2, Pencil, Check, X } from "lucide-react";
 import { Bar, PageHeader, Section } from "@/components/fin";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Button } from "@/components/ui/button";
 import {
   brl,
   formatarPrazo,
+  formatValorInput,
   META_GRANDE,
   mesesParaMeta,
-  totais,
-  useFinance,
+  nomeMes,
+  parseValor,
+  type Investimento,
 } from "@/lib/finance";
+import { useMes } from "@/lib/mes-context";
+import {
+  useInvestimentos,
+  useUpdateInvestimento,
+  useSetInvestimentoMes,
+  useConfiguracoes,
+  useUpdateConfiguracoes,
+} from "@/lib/hooks";
 
 export const Route = createFileRoute("/investimentos")({
   head: () => ({
@@ -31,74 +44,192 @@ export const Route = createFileRoute("/investimentos")({
 });
 
 function Investimentos() {
-  const { state, update } = useFinance();
-  const t = totais(state);
-  const metaPct = (t.acumuladoMeta / META_GRANDE) * 100;
-  const prazo = formatarPrazo(mesesParaMeta(t.acumuladoMeta, t.aporteMeta, state.rendimentoMensal));
+  const { mes } = useMes();
+  const { data: investimentos = [], isLoading: loadingInv } = useInvestimentos(mes);
+  const { data: config, isLoading: loadingCfg } = useConfiguracoes();
+  const updateInv = useUpdateInvestimento();
+  const setInvMes = useSetInvestimentoMes();
+  const updateCfg = useUpdateConfiguracoes();
 
-  const setInv = (id: string, patch: Partial<{ aporteMensal: number; acumulado: number; alvo: number }>) =>
-    update((s) => ({
-      ...s,
-      investimentos: s.investimentos.map((i) => (i.id === id ? { ...i, ...patch } : i)),
-    }));
+  const [editandoId, setEditandoId] = useState<string | null>(null);
+  const [rascunhoFields, setRascunhoFields] = useState({ aporteMensal: "", acumulado: "", alvo: "" });
+  const [editandoMeta, setEditandoMeta] = useState(false);
+  const [rascunhoRendimento, setRascunhoRendimento] = useState("");
+
+  const rendimentoMensal = config?.rendimentoMensal ?? 0.012;
+  const incluirAluguelNaMeta = config?.incluirAluguelNaMeta ?? true;
+
+  const totalAporte = investimentos.reduce((a, i) => a + i.aporteMensal, 0);
+  const acumuladoTotal = investimentos.reduce((a, i) => a + i.acumulado, 0);
+  const acumuladoAluguel = investimentos
+    .filter((i) => i.origemAluguel)
+    .reduce((a, i) => a + i.acumulado, 0);
+  const aporteAluguel = investimentos
+    .filter((i) => i.origemAluguel)
+    .reduce((a, i) => a + i.aporteMensal, 0);
+
+  const acumuladoMeta = incluirAluguelNaMeta ? acumuladoTotal : acumuladoTotal - acumuladoAluguel;
+  const aporteMeta = incluirAluguelNaMeta ? totalAporte : totalAporte - aporteAluguel;
+  const metaPct = (acumuladoMeta / META_GRANDE) * 100;
+  const prazo = formatarPrazo(mesesParaMeta(acumuladoMeta, aporteMeta, rendimentoMensal));
+
+  function iniciarEdicao(inv: Investimento) {
+    setEditandoId(inv.id);
+    setRascunhoFields({
+      aporteMensal: formatValorInput(inv.aporteMensal),
+      acumulado: formatValorInput(inv.acumulado),
+      alvo: inv.alvo !== undefined ? formatValorInput(inv.alvo) : "",
+    });
+  }
+
+  function salvarEdicao(inv: Investimento) {
+    const novoAporte = parseValor(rascunhoFields.aporteMensal);
+    const novoAcumulado = parseValor(rascunhoFields.acumulado);
+    const novoAlvo = inv.alvo !== undefined ? parseValor(rascunhoFields.alvo) : undefined;
+
+    // Salva aporte como override do mês
+    setInvMes.mutate({ investimentoId: inv.id, mes, aporteMensal: novoAporte });
+
+    // Acumulado e alvo são globais (não mudam por mês)
+    if (novoAcumulado !== inv.acumulado || novoAlvo !== inv.alvo) {
+      updateInv.mutate({ ...inv, acumulado: novoAcumulado, alvo: novoAlvo });
+    }
+
+    setEditandoId(null);
+  }
+
+  function cancelarEdicao() {
+    setEditandoId(null);
+  }
+
+  function iniciarEdicaoMeta() {
+    setEditandoMeta(true);
+    setRascunhoRendimento((rendimentoMensal * 100).toFixed(2).replace(".", ","));
+  }
+
+  function salvarMeta() {
+    const val = parseValor(rascunhoRendimento);
+    updateCfg.mutate({ rendimentoMensal: val / 100 });
+    setEditandoMeta(false);
+  }
+
+  if (loadingInv || loadingCfg) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Investimentos e metas" subtitle={`${brl(t.investimentos)} de aporte planejado por mês`} />
+      <PageHeader
+        title="Investimentos e metas"
+        subtitle={`${nomeMes(mes)} · ${brl(totalAporte)} de aporte planejado`}
+      />
 
-      <Section title="Carteira" description="Aporte mensal, acumulado e progresso quando há alvo">
+      <Section title="Carteira" description="Aporte do mês, acumulado e progresso quando há alvo">
         <div className="space-y-3">
-          {state.investimentos.map((i) => {
+          {investimentos.map((i) => {
             const pct = i.alvo ? (i.acumulado / i.alvo) * 100 : null;
+            const isEditing = editandoId === i.id;
+
             return (
               <div key={i.id} className="space-y-3 rounded-xl border bg-card p-4">
-                <div className="flex items-baseline justify-between gap-3">
+                <div className="flex items-start justify-between gap-3">
                   <div>
                     <p className="text-sm font-semibold">{i.nome}</p>
                     {i.nota ? <p className="text-xs text-muted-foreground">{i.nota}</p> : null}
                   </div>
-                  <span className="num text-lg font-semibold">{brl(i.acumulado)}</span>
-                </div>
-                {pct !== null && (
-                  <>
-                    <Bar value={pct} />
-                    <p className="num text-xs text-muted-foreground">
-                      {pct.toFixed(1)}% de {brl(i.alvo!)}
-                    </p>
-                  </>
-                )}
-                <div className="grid grid-cols-2 gap-3">
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Aporte mensal</Label>
-                    <Input
-                      inputMode="decimal"
-                      value={String(i.aporteMensal)}
-                      onChange={(e) =>
-                        setInv(i.id, { aporteMensal: Number(e.target.value.replace(",", ".")) || 0 })
-                      }
-                    />
-                  </div>
-                  <div className="space-y-1.5">
-                    <Label className="text-xs">Acumulado</Label>
-                    <Input
-                      inputMode="decimal"
-                      value={String(i.acumulado)}
-                      onChange={(e) =>
-                        setInv(i.id, { acumulado: Number(e.target.value.replace(",", ".")) || 0 })
-                      }
-                    />
-                  </div>
-                  {i.alvo !== undefined && (
-                    <div className="col-span-2 space-y-1.5">
-                      <Label className="text-xs">Valor-alvo</Label>
-                      <Input
-                        inputMode="decimal"
-                        value={String(i.alvo)}
-                        onChange={(e) => setInv(i.id, { alvo: Number(e.target.value.replace(",", ".")) || 0 })}
-                      />
-                    </div>
+                  {!isEditing && (
+                    <button
+                      aria-label="Editar"
+                      className="mt-0.5 text-muted-foreground hover:text-foreground"
+                      onClick={() => iniciarEdicao(i)}
+                    >
+                      <Pencil className="size-4" />
+                    </button>
                   )}
                 </div>
+
+                {isEditing ? (
+                  <>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Aporte neste mês</Label>
+                        <Input
+                          inputMode="decimal"
+                          value={rascunhoFields.aporteMensal}
+                          onChange={(e) =>
+                            setRascunhoFields({ ...rascunhoFields, aporteMensal: e.target.value })
+                          }
+                        />
+                      </div>
+                      <div className="space-y-1.5">
+                        <Label className="text-xs">Acumulado total</Label>
+                        <Input
+                          inputMode="decimal"
+                          value={rascunhoFields.acumulado}
+                          onChange={(e) =>
+                            setRascunhoFields({ ...rascunhoFields, acumulado: e.target.value })
+                          }
+                        />
+                      </div>
+                      {i.alvo !== undefined && (
+                        <div className="col-span-2 space-y-1.5">
+                          <Label className="text-xs">Valor-alvo</Label>
+                          <Input
+                            inputMode="decimal"
+                            value={rascunhoFields.alvo}
+                            onChange={(e) =>
+                              setRascunhoFields({ ...rascunhoFields, alvo: e.target.value })
+                            }
+                          />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        onClick={() => salvarEdicao(i)}
+                        disabled={setInvMes.isPending || updateInv.isPending}
+                      >
+                        <Check className="size-4" /> Salvar
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={cancelarEdicao}>
+                        <X className="size-4" /> Cancelar
+                      </Button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div>
+                        <span className="text-xs text-muted-foreground">Aporte neste mês</span>
+                        <p className="num font-semibold">{brl(i.aporteMensal)}</p>
+                      </div>
+                      <div>
+                        <span className="text-xs text-muted-foreground">Acumulado total</span>
+                        <p className="num font-semibold">{brl(i.acumulado)}</p>
+                      </div>
+                      {i.alvo !== undefined && (
+                        <div className="col-span-2">
+                          <span className="text-xs text-muted-foreground">Valor-alvo</span>
+                          <p className="num font-semibold">{brl(i.alvo)}</p>
+                        </div>
+                      )}
+                    </div>
+                    {pct !== null && (
+                      <>
+                        <Bar value={pct} />
+                        <p className="num text-xs text-muted-foreground">
+                          {pct.toFixed(1)}% de {brl(i.alvo!)}
+                        </p>
+                      </>
+                    )}
+                  </>
+                )}
+
                 {i.id === "italia" && (
                   <p className="text-xs text-muted-foreground">
                     Depois da viagem, esse aporte vira aporte extra de investimento.
@@ -114,31 +245,54 @@ function Investimentos() {
         <div className="space-y-4 rounded-xl border bg-card p-4">
           <div className="flex items-baseline justify-between">
             <span className="text-xs text-muted-foreground">
-              {state.incluirAluguelNaMeta ? "Contando o aluguel" : "Sem o aluguel"}
+              {incluirAluguelNaMeta ? "Contando o aluguel" : "Sem o aluguel"}
             </span>
-            <span className="num text-2xl font-semibold">{brl(t.acumuladoMeta)}</span>
+            <span className="num text-2xl font-semibold">{brl(acumuladoMeta)}</span>
           </div>
           <Bar value={metaPct} />
           <div className="flex justify-between text-xs text-muted-foreground">
             <span className="num">{metaPct.toFixed(1)}%</span>
-            <span className="num">faltam {brl(Math.max(0, META_GRANDE - t.acumuladoMeta))}</span>
+            <span className="num">faltam {brl(Math.max(0, META_GRANDE - acumuladoMeta))}</span>
           </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Rendimento médio mensal (%)</Label>
-            <Input
-              inputMode="decimal"
-              value={String((state.rendimentoMensal * 100).toFixed(2))}
-              onChange={(e) =>
-                update((s) => ({
-                  ...s,
-                  rendimentoMensal: (Number(e.target.value.replace(",", ".")) || 0) / 100,
-                }))
-              }
-            />
-            <p className="text-xs text-muted-foreground">
-              Parte rende 112% do CDI, parte 100% — use a média.
-            </p>
-          </div>
+
+          {editandoMeta ? (
+            <div className="space-y-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Rendimento médio mensal (%)</Label>
+                <Input
+                  inputMode="decimal"
+                  value={rascunhoRendimento}
+                  onChange={(e) => setRascunhoRendimento(e.target.value)}
+                />
+                <p className="text-xs text-muted-foreground">
+                  Parte rende 112% do CDI, parte 100% — use a média.
+                </p>
+              </div>
+              <div className="flex gap-2">
+                <Button size="sm" onClick={salvarMeta} disabled={updateCfg.isPending}>
+                  <Check className="size-4" /> Salvar
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setEditandoMeta(false)}>
+                  <X className="size-4" /> Cancelar
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between">
+              <div>
+                <span className="text-xs text-muted-foreground">Rendimento mensal</span>
+                <p className="num text-sm font-semibold">{(rendimentoMensal * 100).toFixed(2)}%</p>
+              </div>
+              <button
+                aria-label="Editar rendimento"
+                className="text-muted-foreground hover:text-foreground"
+                onClick={iniciarEdicaoMeta}
+              >
+                <Pencil className="size-4" />
+              </button>
+            </div>
+          )}
+
           <p className="text-sm">
             Nesse ritmo: <span className="font-semibold">{prazo}</span> até os R$100 mil.
           </p>

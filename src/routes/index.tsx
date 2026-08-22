@@ -1,17 +1,16 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { Loader2 } from "lucide-react";
 import { Bar, PageHeader, Section, Stat } from "@/components/fin";
-import { Switch } from "@/components/ui/switch";
+import { brl, HOBBY_REFERENCIA, nomeMes, type Lancamento } from "@/lib/finance";
+import { useMes } from "@/lib/mes-context";
 import {
-  brl,
-  formatarPrazo,
-  HOBBY_REFERENCIA,
-  META_GRANDE,
-  mesAtual,
-  mesesParaMeta,
-  nomeMes,
-  totais,
-  useFinance,
-} from "@/lib/finance";
+  useEntradas,
+  useLancamentos,
+  useInvestimentos,
+  useContasFixas,
+  useConfiguracoes,
+  useAssinaturas,
+} from "@/lib/hooks";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -32,109 +31,134 @@ export const Route = createFileRoute("/")({
   component: Index,
 });
 
-function Index() {
-  const { state, update, hydrated } = useFinance();
-  const mes = mesAtual();
-  const t = totais(state, mes);
+const HOBBY_CATEGORIA = "cards f1";
 
-  const usadoPct = t.livre > 0 ? (t.gasto / t.livre) * 100 : 0;
-  const metaPct = (t.acumuladoMeta / META_GRANDE) * 100;
-  const aporteTotal = t.aporteMeta;
-  const prazo = formatarPrazo(mesesParaMeta(t.acumuladoMeta, aporteTotal, state.rendimentoMensal));
+function Index() {
+  const { mes } = useMes();
+  const { data: entradas = [], isLoading: le } = useEntradas(mes);
+  const { data: lancamentos = [], isLoading: ll } = useLancamentos(mes);
+  const { data: investimentos = [], isLoading: li } = useInvestimentos(mes);
+  const { data: contas = [], isLoading: lc } = useContasFixas(mes);
+  const { data: config } = useConfiguracoes();
+  const { data: assinaturas = [] } = useAssinaturas();
+
+  const isLoading = le || ll || li || lc;
+
+  // Cálculos derivados
+  const totalAssinaturas = assinaturas.filter((a) => a.ativa).reduce((a, s) => a + s.valor, 0);
+  const contasComAssinaturas = contas.map((c) =>
+    c.id === "assinaturas" ? { ...c, valor: totalAssinaturas } : c,
+  );
+  const entradasOficiais = entradas.filter((e) => e.oficial).reduce((a, e) => a + e.valor, 0);
+  const mesada = entradas.filter((e) => !e.oficial).reduce((a, e) => a + e.valor, 0);
+  const totalInvestimentos = investimentos.reduce((a, i) => a + i.aporteMensal, 0);
+  const totalContas = contasComAssinaturas.reduce((a, c) => a + c.valor, 0);
+  const comprometido = totalInvestimentos + totalContas;
+  const livre = entradasOficiais - comprometido;
+
+  const ehHobby = (l: Lancamento) => l.categoria.trim().toLowerCase() === HOBBY_CATEGORIA;
+  const gastoHobby = lancamentos.filter(ehHobby).reduce((a, l) => a + l.valor, 0);
+  const gasto = lancamentos.filter((l) => !ehHobby(l)).reduce((a, l) => a + l.valor, 0);
+  const restante = livre - gasto;
+  const usadoPct = livre > 0 ? (gasto / livre) * 100 : 0;
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-16">
+        <Loader2 className="size-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Visão geral" subtitle={`${nomeMes(mes)} · atualizado no seu aparelho`} />
+      <PageHeader title="Visão geral" subtitle={`${nomeMes(mes)} · dados salvos na nuvem`} />
 
-      <div className="grid grid-cols-2 gap-3">
-        <Stat label="Entradas do mês" value={t.entradasOficiais} hint="Sem a mesada" />
-        <Stat label="Comprometido" value={t.comprometido} hint="Investimentos + contas fixas" />
-        <Stat label="Livre pra gastar" value={t.livre} hint="Teto do mês" />
+      {/* Stats grid: 2 cols mobile, 4 cols desktop */}
+      <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
+        <Stat label="Entradas do mês" value={entradasOficiais} hint="Sem a mesada" />
+        <Stat label="Comprometido" value={comprometido} hint="Investimentos + contas fixas" />
+        <Stat label="Livre pra gastar" value={livre} hint="Teto do mês" />
         <Stat
           label="Já gasto"
-          value={t.gasto}
-          tone={t.gasto > t.livre ? "destructive" : "default"}
-          hint={`${t.lancamentosDoMes.length} lançamento(s) · hobby fora do teto`}
+          value={gasto}
+          tone={gasto > livre ? "destructive" : "default"}
+          hint={`${lancamentos.length} lançamento(s) · hobby fora do teto`}
         />
       </div>
 
-      <Section title="Quanto ainda resta" description={`${brl(t.gasto)} de ${brl(t.livre)} usados`}>
-        <div className="space-y-3 rounded-xl border bg-card p-4">
-          <Bar value={usadoPct} tone={usadoPct > 100 ? "destructive" : usadoPct > 80 ? "warn" : "primary"} />
-          <div className="flex items-baseline justify-between">
-            <span className="text-xs text-muted-foreground">Restante</span>
-            <span
-              className={`num text-2xl font-semibold ${t.restante < 0 ? "text-destructive" : "text-positive"}`}
-            >
-              {brl(t.restante)}
-            </span>
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Hobby (cards F1) neste mês: <span className="num">{brl(t.gastoHobby)}</span> — sai da mesada,
-            não desconta do teto. Referência de {brl(HOBBY_REFERENCIA)}, sem limite travado.
-          </p>
-        </div>
-      </Section>
-
-
-      <Section
-        title="Investimentos acumulados"
-        description="Total geral e progresso rumo aos R$100.000"
-        action={
-          <Link to="/investimentos" className="text-xs font-medium text-primary">
-            Detalhes
-          </Link>
-        }
-      >
-        <div className="space-y-4 rounded-xl border bg-card p-4">
-          <div className="flex items-baseline justify-between">
-            <span className="text-xs text-muted-foreground">
-              {state.incluirAluguelNaMeta ? "Total investido" : "Investido sem o aluguel"}
-            </span>
-            <span className="num text-2xl font-semibold">{brl(t.acumuladoMeta)}</span>
-          </div>
-          {!state.incluirAluguelNaMeta && (
-            <p className="num text-xs text-muted-foreground">
-              Total geral com o aluguel: {brl(t.acumuladoTotal)}
-            </p>
-          )}
-          <Bar value={metaPct} />
-          <div className="flex justify-between text-xs text-muted-foreground">
-            <span className="num">{metaPct.toFixed(1)}% da meta</span>
-            <span className="num">faltam {brl(Math.max(0, META_GRANDE - t.acumuladoMeta))}</span>
-          </div>
-          <div className="flex items-center justify-between gap-4 rounded-lg bg-surface p-3">
-            <div>
-              <p className="text-xs font-medium">Incluir o que veio do aluguel</p>
-              <p className="text-xs text-muted-foreground num">
-                {brl(t.acumuladoAluguel)} acumulados e {brl(t.aporteAluguel)}/mês vindos do aluguel
+      {/* Desktop: 2 colunas lado a lado | Mobile: empilhado */}
+      <div className="grid gap-8 md:grid-cols-2">
+        {/* Coluna esquerda */}
+        <div className="space-y-8">
+          <Section title="Quanto ainda resta" description={`${brl(gasto)} de ${brl(livre)} usados`}>
+            <div className="space-y-3 rounded-xl border bg-card p-4">
+              <Bar value={usadoPct} tone={usadoPct > 100 ? "destructive" : usadoPct > 80 ? "warn" : "primary"} />
+              <div className="flex items-baseline justify-between">
+                <span className="text-xs text-muted-foreground">Restante</span>
+                <span
+                  className={`num text-2xl font-semibold ${restante < 0 ? "text-destructive" : "text-positive"}`}
+                >
+                  {brl(restante)}
+                </span>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Hobby (cards F1) neste mês: <span className="num">{brl(gastoHobby)}</span> — sai da mesada,
+                não desconta do teto. Referência de {brl(HOBBY_REFERENCIA)}, sem limite travado.
               </p>
             </div>
-            <Switch
-              checked={state.incluirAluguelNaMeta}
-              disabled={!hydrated}
-              onCheckedChange={(v) => update((s) => ({ ...s, incluirAluguelNaMeta: v }))}
-            />
-          </div>
-          <p className="text-xs text-muted-foreground">
-            Aportando {brl(aporteTotal)}/mês a {(state.rendimentoMensal * 100).toFixed(2)}% ao mês: {prazo}{" "}
-            até os R$100 mil.
-          </p>
-        </div>
-      </Section>
+          </Section>
 
-      <Section title="Fora do orçamento oficial" description="Bônus à parte, nunca base do mês">
-        <div className="rounded-xl border border-dashed bg-card/50 p-4 text-sm">
-          <div className="flex items-baseline justify-between">
-            <span className="text-muted-foreground">Mesada</span>
-            <span className="num font-semibold">{brl(t.mesada)}</span>
-          </div>
-          <p className="mt-2 text-xs text-muted-foreground">
-            Cobre a nutricionista (R$ 172,00) e o hobby inteiro (R$ 300,00) — sobram R$ 28,00. Não entra em
-            entradas nem em nenhum cálculo do teto.
-          </p>
+          <Section
+            title="Contas fixas do mês"
+            description={`${contasComAssinaturas.filter((c) => c.pago).length} de ${contasComAssinaturas.length} pagas`}
+            action={
+              <Link to="/contas" className="text-xs font-medium text-primary">
+                Ver todas
+              </Link>
+            }
+          >
+            <ul className="divide-y rounded-xl border bg-card">
+              {contasComAssinaturas.map((c) => (
+                <li key={c.id} className="flex items-center gap-3 p-3">
+                  <span
+                    className={`size-2 shrink-0 rounded-full ${c.pago ? "bg-positive" : "bg-muted-foreground/30"}`}
+                  />
+                  <span
+                    className={`flex-1 text-sm ${c.pago ? "text-muted-foreground line-through" : "font-medium"}`}
+                  >
+                    {c.nome}
+                  </span>
+                  <span className={`num text-sm ${c.pago ? "text-muted-foreground" : "font-semibold"}`}>
+                    {brl(c.valor)}
+                  </span>
+                  {c.pago && c.pagoEm && (
+                    <span className="text-xs text-muted-foreground">
+                      {c.pagoEm.split("-").reverse().join("/")}
+                    </span>
+                  )}
+                </li>
+              ))}
+            </ul>
+          </Section>
         </div>
-      </Section>
+
+        {/* Coluna direita */}
+        <div className="space-y-8">
+          <Section title="Fora do orçamento oficial" description="Bônus à parte, nunca base do mês">
+            <div className="rounded-xl border border-dashed bg-card/50 p-4 text-sm">
+              <div className="flex items-baseline justify-between">
+                <span className="text-muted-foreground">Mesada</span>
+                <span className="num font-semibold">{brl(mesada)}</span>
+              </div>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Cobre a nutricionista (R$ 172,00) e o hobby inteiro (R$ 300,00) — sobram R$ 28,00. Não entra em
+                entradas nem em nenhum cálculo do teto.
+              </p>
+            </div>
+          </Section>
+        </div>
+      </div>
     </div>
   );
 }

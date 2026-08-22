@@ -12,6 +12,8 @@ import { LayoutDashboard, ListPlus, PiggyBank, Receipt } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
+import { MesProvider } from "../lib/mes-context";
+import { MesPickerCompact } from "../components/mes-picker";
 
 function NotFoundComponent() {
   return (
@@ -124,29 +126,66 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="min-h-screen bg-background pb-24">
-        <div className="mx-auto w-full max-w-2xl px-4 py-6">
-          {/* Required: nested routes render here. */}
-          <Outlet />
-        </div>
+      <MesProvider>
+        <div className="min-h-screen bg-background md:flex">
+          {/* Sidebar — desktop only */}
+          <aside className="hidden md:fixed md:inset-y-0 md:left-0 md:flex md:w-56 md:flex-col md:border-r md:bg-card">
+            <div className="px-5 py-6">
+              <h1 className="text-base font-bold tracking-tight">Meu Dinheiro</h1>
+            </div>
+            <div className="px-3 pb-3">
+              <MesPickerCompact />
+            </div>
+            <nav className="flex flex-1 flex-col gap-1 px-3">
+              {tabs.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  activeOptions={{ exact: to === "/" }}
+                  className="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm text-muted-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                  activeProps={{ className: "bg-accent text-accent-foreground font-medium" }}
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </Link>
+              ))}
+            </nav>
+            <div className="px-5 py-4 text-[10px] text-muted-foreground">
+              Dados salvos na nuvem
+            </div>
+          </aside>
 
-        <nav className="fixed inset-x-0 bottom-0 border-t bg-card/95 backdrop-blur">
-          <div className="mx-auto grid max-w-2xl grid-cols-4">
-            {tabs.map(({ to, label, icon: Icon }) => (
-              <Link
-                key={to}
-                to={to}
-                activeOptions={{ exact: to === "/" }}
-                className="flex flex-col items-center gap-1 py-3 text-[11px] text-muted-foreground transition-colors"
-                activeProps={{ className: "text-primary font-semibold" }}
-              >
-                <Icon className="size-5" />
-                {label}
-              </Link>
-            ))}
-          </div>
-        </nav>
-      </div>
+          {/* Main content */}
+          <main className="w-full pb-20 md:pb-0 md:pl-56">
+            {/* Mobile month picker */}
+            <div className="sticky top-0 z-10 flex items-center justify-center border-b bg-background/95 py-2 backdrop-blur md:hidden">
+              <MesPickerCompact />
+            </div>
+            <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-8 md:py-8">
+              {/* Required: nested routes render here. */}
+              <Outlet />
+            </div>
+          </main>
+
+          {/* Bottom nav — mobile only */}
+          <nav className="fixed inset-x-0 bottom-0 border-t bg-card/95 backdrop-blur md:hidden">
+            <div className="mx-auto grid max-w-2xl grid-cols-4">
+              {tabs.map(({ to, label, icon: Icon }) => (
+                <Link
+                  key={to}
+                  to={to}
+                  activeOptions={{ exact: to === "/" }}
+                  className="flex flex-col items-center gap-1 py-3 text-[11px] text-muted-foreground transition-colors"
+                  activeProps={{ className: "text-primary font-semibold" }}
+                >
+                  <Icon className="size-5" />
+                  {label}
+                </Link>
+              ))}
+            </div>
+          </nav>
+        </div>
+      </MesProvider>
     </QueryClientProvider>
   );
 }

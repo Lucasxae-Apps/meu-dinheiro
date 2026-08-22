@@ -6,3 +6,11 @@ pnpm-lock.yaml
 package-lock.json
 bun.lock
 routeTree.gen.ts
+
+# AppSec protected paths (do not format)
+.kiro/steering/
+.kiro/specs/
+.claude/rules/
+.cursor/rules/
+.github/copilot-instructions.md
+.appsec/
