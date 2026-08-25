@@ -87,12 +87,19 @@ function Investimentos() {
     const novoAcumulado = parseValor(rascunhoFields.acumulado);
     const novoAlvo = inv.alvo !== undefined ? parseValor(rascunhoFields.alvo) : undefined;
 
-    // Salva aporte como override do mês
-    setInvMes.mutate({ investimentoId: inv.id, mes, aporteMensal: novoAporte });
-
-    // Acumulado e alvo são globais (não mudam por mês)
-    if (novoAcumulado !== inv.acumulado || novoAlvo !== inv.alvo) {
-      updateInv.mutate({ ...inv, acumulado: novoAcumulado, alvo: novoAlvo });
+    // Se o aporte mudou, atualiza o valor base (vale pra frente)
+    // e salva o valor antigo como override do mês atual pra não alterar o passado
+    if (novoAporte !== inv.aporteMensal) {
+      // Fixa o valor que estava sendo exibido neste mês como override
+      // (preserva o histórico deste mês e anteriores)
+      setInvMes.mutate({ investimentoId: inv.id, mes, aporteMensal: inv.aporteMensal });
+      // Atualiza o valor base (daqui pra frente, meses sem override usam o novo)
+      updateInv.mutate({ ...inv, aporteMensal: novoAporte, acumulado: novoAcumulado, alvo: novoAlvo });
+    } else {
+      // Só acumulado/alvo mudaram — atualiza direto
+      if (novoAcumulado !== inv.acumulado || novoAlvo !== inv.alvo) {
+        updateInv.mutate({ ...inv, acumulado: novoAcumulado, alvo: novoAlvo });
+      }
     }
 
     setEditandoId(null);

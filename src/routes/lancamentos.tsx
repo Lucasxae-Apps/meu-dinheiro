@@ -1,11 +1,18 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useMemo, useState } from "react";
-import { Trash2, Pencil, Check, X, Loader2 } from "lucide-react";
+import { Trash2, Pencil, Check, X, Loader2, CreditCard } from "lucide-react";
 import { PageHeader, Section } from "@/components/fin";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { brl, nomeMes, uid, parseValor, formatValorInput, type Lancamento } from "@/lib/finance";
+import {
+  brl,
+  nomeMes,
+  uid,
+  parseValor,
+  type Lancamento,
+  type MeioPagamento,
+} from "@/lib/finance";
 import { useMes } from "@/lib/mes-context";
 import {
   useLancamentos,
@@ -16,6 +23,7 @@ import {
   useInvestimentos,
   useContasFixas,
   useAssinaturas,
+  useConfiguracoes,
 } from "@/lib/hooks";
 
 export const Route = createFileRoute("/lancamentos")({
@@ -40,6 +48,13 @@ const HOBBY_CATEGORIA = "cards f1";
 
 const hoje = () => new Date().toISOString().slice(0, 10);
 
+const MEIOS_PAGAMENTO: { value: MeioPagamento; label: string }[] = [
+  { value: "debito", label: "Débito" },
+  { value: "credito", label: "Crédito" },
+  { value: "pix", label: "Pix" },
+  { value: "dinheiro", label: "Dinheiro" },
+];
+
 function Lancamentos() {
   const { mes } = useMes();
   const { data: lancamentos = [], isLoading } = useLancamentos(mes);
@@ -47,6 +62,9 @@ function Lancamentos() {
   const { data: investimentos = [] } = useInvestimentos(mes);
   const { data: contas = [] } = useContasFixas(mes);
   const { data: assinaturas = [] } = useAssinaturas();
+  const { data: config } = useConfiguracoes();
+
+  const diaFechamento = config?.diaFechamentoFatura ?? 25;
 
   const addMutation = useAddLancamento(mes);
   const updateMutation = useUpdateLancamento(mes);
@@ -56,6 +74,8 @@ function Lancamentos() {
   const [categoria, setCategoria] = useState("");
   const [valor, setValor] = useState("");
   const [nota, setNota] = useState("");
+  const [meioPagamento, setMeioPagamento] = useState<MeioPagamento>("debito");
+  const [mesRefFatura, setMesRefFatura] = useState(mes); // mês da fatura (editável)
   const [filtroCat, setFiltroCat] = useState("");
   const [editando, setEditando] = useState<string | null>(null);
   const [rascunho, setRascunho] = useState<Lancamento | null>(null);
@@ -102,12 +122,15 @@ function Lancamentos() {
     const digitada = categoria.trim();
     if (!v || !digitada) return;
     const existente = categorias.find((c) => c.toLowerCase() === digitada.toLowerCase());
+
     addMutation.mutate({
       id: uid(),
       data,
       categoria: existente ?? digitada,
       valor: v,
       nota: nota.trim() || undefined,
+      meioPagamento,
+      mesReferenciaFatura: meioPagamento === "credito" ? mesRefFatura : undefined,
     });
     setValor("");
     setNota("");
@@ -115,7 +138,8 @@ function Lancamentos() {
 
   function salvarEdicao() {
     if (!rascunho) return;
-    updateMutation.mutate(rascunho);
+    const mesRef = rascunho.meioPagamento === "credito" ? rascunho.mesReferenciaFatura : undefined;
+    updateMutation.mutate({ ...rascunho, mesReferenciaFatura: mesRef });
     setEditando(null);
     setRascunho(null);
   }
@@ -124,7 +148,8 @@ function Lancamentos() {
     <div className="space-y-8">
       <PageHeader title="Lançamentos" subtitle="O que substitui a planilha" />
 
-      <form onSubmit={adicionar} className="space-y-3 rounded-xl border bg-card p-4">
+      <div className="grid gap-8 xl:grid-cols-[380px_1fr]">
+      <form onSubmit={adicionar} className="space-y-3 rounded-xl border bg-card p-4 xl:sticky xl:top-8 xl:self-start">
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="data">Data</Label>
@@ -141,6 +166,44 @@ function Lancamentos() {
             />
           </div>
         </div>
+
+        {/* Meio de pagamento */}
+        <div className="space-y-1.5">
+          <Label>Meio de pagamento</Label>
+          <div className="flex flex-wrap gap-1.5">
+            {MEIOS_PAGAMENTO.map((m) => (
+              <button
+                key={m.value}
+                type="button"
+                onClick={() => setMeioPagamento(m.value)}
+                className={`rounded-full border px-3 py-1 text-xs transition-colors ${
+                  meioPagamento === m.value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "bg-secondary text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {meioPagamento === "credito" && (
+            <div className="mt-2 space-y-1.5">
+              <Label htmlFor="mesRefFatura">Fatura de qual mês?</Label>
+              <Input
+                id="mesRefFatura"
+                type="month"
+                value={mesRefFatura}
+                onChange={(e) => setMesRefFatura(e.target.value)}
+              />
+              <p className="flex items-center gap-1 text-xs text-muted-foreground">
+                <CreditCard className="size-3" />
+                Esse gasto vai impactar o orçamento de{" "}
+                <span className="font-medium">{nomeMes(mesRefFatura)}</span>
+              </p>
+            </div>
+          )}
+        </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="categoria">Categoria</Label>
           <Input
@@ -178,6 +241,7 @@ function Lancamentos() {
         </Button>
       </form>
 
+      <div>
       <Section
         title="Do mês"
         description={`${nomeMes(mes)} · ${brl(totalFiltrado)} no filtro atual · restam ${brl(restante)} do teto`}
@@ -195,7 +259,7 @@ function Lancamentos() {
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
           </div>
         ) : (
-          <ul className="mt-3 divide-y rounded-xl border bg-card">
+          <ul className="mt-3 divide-y rounded-xl border bg-card xl:max-h-[calc(100vh-320px)] xl:overflow-y-auto">
             {lista.length === 0 && (
               <li className="p-4 text-sm text-muted-foreground">Nenhum lançamento nesse recorte.</li>
             )}
@@ -220,6 +284,32 @@ function Lancamentos() {
                     value={rascunho.categoria}
                     onChange={(e) => setRascunho({ ...rascunho, categoria: e.target.value })}
                   />
+                  {/* Meio de pagamento na edição */}
+                  <div className="flex flex-wrap gap-1.5">
+                    {MEIOS_PAGAMENTO.map((m) => (
+                      <button
+                        key={m.value}
+                        type="button"
+                        onClick={() => setRascunho({ ...rascunho, meioPagamento: m.value })}
+                        className={`rounded-full border px-2.5 py-1 text-xs transition-colors ${
+                          rascunho.meioPagamento === m.value
+                            ? "border-primary bg-primary text-primary-foreground"
+                            : "bg-secondary text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        {m.label}
+                      </button>
+                    ))}
+                  </div>
+                  {rascunho.meioPagamento === "credito" && (
+                    <Input
+                      type="month"
+                      value={rascunho.mesReferenciaFatura ?? mes}
+                      onChange={(e) =>
+                        setRascunho({ ...rascunho, mesReferenciaFatura: e.target.value })
+                      }
+                    />
+                  )}
                   <Input
                     placeholder="Nota"
                     value={rascunho.nota ?? ""}
@@ -244,9 +334,21 @@ function Lancamentos() {
               ) : (
                 <li key={l.id} className="flex items-center gap-3 p-3">
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium">{l.categoria}</p>
+                    <p className="truncate text-sm font-medium">
+                      {l.categoria}
+                      {l.meioPagamento === "credito" && (
+                        <CreditCard className="ml-1 inline size-3 text-muted-foreground" />
+                      )}
+                    </p>
                     <p className="num text-xs text-muted-foreground">
                       {l.data.split("-").reverse().join("/")}
+                      {l.meioPagamento === "credito" &&
+                        l.mesReferenciaFatura &&
+                        l.mesReferenciaFatura !== l.data.slice(0, 7) && (
+                          <span className="ml-1 text-amber-600">
+                            · fatura de {nomeMes(l.mesReferenciaFatura)}
+                          </span>
+                        )}
                       {l.nota ? ` · ${l.nota}` : ""}
                     </p>
                   </div>
@@ -274,6 +376,8 @@ function Lancamentos() {
           </ul>
         )}
       </Section>
+      </div>
+      </div>{/* end grid xl:grid-cols-[380px_1fr] */}
     </div>
   );
 }

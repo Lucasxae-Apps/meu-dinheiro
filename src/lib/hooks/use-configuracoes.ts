@@ -8,6 +8,7 @@ import { uid } from "../finance";
 export type Configuracoes = {
   rendimentoMensal: number;
   incluirAluguelNaMeta: boolean;
+  diaFechamentoFatura: number;
 };
 
 export function useConfiguracoes() {
@@ -22,11 +23,12 @@ export function useConfiguracoes() {
       if (error) throw error;
       if (!data) {
         // Row ainda não existe — retorna defaults
-        return { rendimentoMensal: 0.012, incluirAluguelNaMeta: true };
+        return { rendimentoMensal: 0.012, incluirAluguelNaMeta: true, diaFechamentoFatura: 25 };
       }
       return {
         rendimentoMensal: Number(data["rendimento_mensal"]),
         incluirAluguelNaMeta: data["incluir_aluguel_na_meta"],
+        diaFechamentoFatura: Number(data["dia_fechamento_fatura"] ?? 25),
       };
     },
   });
@@ -39,6 +41,7 @@ export function useUpdateConfiguracoes() {
       const payload: Record<string, unknown> = { updated_at: new Date().toISOString() };
       if (cfg.rendimentoMensal !== undefined) payload["rendimento_mensal"] = cfg.rendimentoMensal;
       if (cfg.incluirAluguelNaMeta !== undefined) payload["incluir_aluguel_na_meta"] = cfg.incluirAluguelNaMeta;
+      if (cfg.diaFechamentoFatura !== undefined) payload["dia_fechamento_fatura"] = cfg.diaFechamentoFatura;
       const { error } = await supabase.from("configuracoes").update(payload).eq("id", 1);
       if (error) throw error;
     },

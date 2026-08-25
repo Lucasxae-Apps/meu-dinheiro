@@ -18,12 +18,16 @@ export type ContaFixa = {
   pagoEm?: string | undefined;
   nota?: string | undefined;
 };
+export type MeioPagamento = "credito" | "debito" | "pix" | "dinheiro";
+
 export type Lancamento = {
   id: string;
   data: string; // yyyy-mm-dd
   categoria: string;
   valor: number;
   nota?: string | undefined;
+  meioPagamento: MeioPagamento;
+  mesReferenciaFatura?: string | undefined; // yyyy-mm — preenchido apenas para cartão de crédito
 };
 export type DespesaIrregular = {
   id: string;
@@ -137,13 +141,50 @@ export function nomeMes(ym: string) {
   return new Date(y, m - 1, 1).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
 }
 
+/**
+ * Calcula o mês/ano em que uma compra de cartão de crédito impacta o orçamento.
+ *
+ * Regra:
+ * - Se o dia da compra > dia de fechamento → impacta o mês SEGUINTE
+ * - Se o dia da compra <= dia de fechamento → impacta o mês ATUAL
+ *
+ * @param dataCompra - Data da compra no formato yyyy-mm-dd
+ * @param diaFechamento - Dia do mês em que a fatura fecha (ex: 25)
+ * @returns string no formato yyyy-mm representando o mês que a compra impacta
+ */
+export function calcularMesReferenciaFatura(dataCompra: string, diaFechamento: number): string {
+  const [ano, mes, dia] = dataCompra.split("-").map(Number) as [number, number, number];
+
+  if (dia > diaFechamento) {
+    // Compra feita DEPOIS do fechamento → vai pra fatura do mês seguinte
+    const proxMes = mes === 12 ? 1 : mes + 1;
+    const proxAno = mes === 12 ? ano + 1 : ano;
+    return `${String(proxAno).padStart(4, "0")}-${String(proxMes).padStart(2, "0")}`;
+  }
+
+  // Compra feita ANTES ou NO dia do fechamento → fatura do mês atual
+  return `${String(ano).padStart(4, "0")}-${String(mes).padStart(2, "0")}`;
+}
+
+/**
+ * Retorna o mês efetivo que um lançamento impacta no orçamento.
+ * - Cartão de crédito: usa mesReferenciaFatura (ou fallback para data se não preenchido)
+ * - Outros meios: usa a data da transação
+ */
+export function mesEfetivoLancamento(l: Lancamento): string {
+  if (l.meioPagamento === "credito" && l.mesReferenciaFatura) {
+    return l.mesReferenciaFatura;
+  }
+  return l.data.slice(0, 7);
+}
+
 export function totais(state: FinanceState, mes = mesAtual()) {
   const entradasOficiais = state.entradas.filter((e) => e.oficial).reduce((a, e) => a + e.valor, 0);
   const mesada = state.entradas.filter((e) => !e.oficial).reduce((a, e) => a + e.valor, 0);
   const investimentos = state.investimentos.reduce((a, i) => a + i.aporteMensal, 0);
   const contas = state.contas.reduce((a, c) => a + c.valor, 0);
   const livre = entradasOficiais - investimentos - contas;
-  const doMes = state.lancamentos.filter((l) => l.data.slice(0, 7) === mes);
+  const doMes = state.lancamentos.filter((l) => mesEfetivoLancamento(l) === mes);
   const ehHobby = (l: Lancamento) => l.categoria.trim().toLowerCase() === HOBBY_CATEGORIA;
   const gastoHobby = doMes.filter(ehHobby).reduce((a, l) => a + l.valor, 0);
   // Hobby sai da mesada, então não consome o teto do "livre pra gastar".

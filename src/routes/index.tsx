@@ -1,6 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
+import { useMemo } from "react";
 import { Loader2 } from "lucide-react";
+import { Pie, PieChart, Cell } from "recharts";
 import { Bar, PageHeader, Section, Stat } from "@/components/fin";
+import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
 import { brl, HOBBY_REFERENCIA, nomeMes, type Lancamento } from "@/lib/finance";
 import { useMes } from "@/lib/mes-context";
 import {
@@ -52,6 +55,14 @@ function Index() {
   const entradasOficiais = entradas.filter((e) => e.oficial).reduce((a, e) => a + e.valor, 0);
   const mesada = entradas.filter((e) => !e.oficial).reduce((a, e) => a + e.valor, 0);
   const totalInvestimentos = investimentos.reduce((a, i) => a + i.aporteMensal, 0);
+  const investimentosSemAluguel = investimentos
+    .filter((i) => !i.origemAluguel)
+    .reduce((a, i) => a + i.aporteMensal, 0);
+  const aporteViagem = investimentos
+    .filter((i) => i.id === "italia")
+    .reduce((a, i) => a + i.aporteMensal, 0);
+  const aporteInvestReal = investimentosSemAluguel - aporteViagem;
+  const salario = entradas.find((e) => e.id === "salario")?.valor ?? entradasOficiais;
   const totalContas = contasComAssinaturas.reduce((a, c) => a + c.valor, 0);
   const comprometido = totalInvestimentos + totalContas;
   const livre = entradasOficiais - comprometido;
@@ -87,9 +98,9 @@ function Index() {
         />
       </div>
 
-      {/* Desktop: 2 colunas lado a lado | Mobile: empilhado */}
-      <div className="grid gap-8 md:grid-cols-2">
-        {/* Coluna esquerda */}
+      {/* Grid responsivo: 1 col mobile → 2 cols md → 3 cols xl */}
+      <div className="grid gap-8 md:grid-cols-2 xl:grid-cols-3">
+        {/* Coluna 1: Progresso */}
         <div className="space-y-8">
           <Section title="Quanto ainda resta" description={`${brl(gasto)} de ${brl(livre)} usados`}>
             <div className="space-y-3 rounded-xl border bg-card p-4">
@@ -109,6 +120,20 @@ function Index() {
             </div>
           </Section>
 
+          {/* Gráfico: distribuição do salário */}
+          <Section title="Pra onde vai o salário" description="% de cada destino">
+            <SalarioChart
+              investimentos={aporteInvestReal}
+              viagem={aporteViagem}
+              contas={totalContas}
+              livre={salario - investimentosSemAluguel - totalContas}
+              total={salario}
+            />
+          </Section>
+        </div>
+
+        {/* Coluna 2: Contas fixas */}
+        <div className="space-y-8">
           <Section
             title="Contas fixas do mês"
             description={`${contasComAssinaturas.filter((c) => c.pago).length} de ${contasComAssinaturas.length} pagas`}
@@ -118,7 +143,7 @@ function Index() {
               </Link>
             }
           >
-            <ul className="divide-y rounded-xl border bg-card">
+            <ul className="divide-y rounded-xl border bg-card xl:max-h-[calc(100vh-280px)] xl:overflow-y-auto">
               {contasComAssinaturas.map((c) => (
                 <li key={c.id} className="flex items-center gap-3 p-3">
                   <span
@@ -141,10 +166,17 @@ function Index() {
               ))}
             </ul>
           </Section>
+
+          {/* Gráfico: gastos por categoria — fica junto das contas no md, col própria no xl */}
+          {lancamentos.length > 0 && (
+            <Section title="Gastos por categoria" description="Breakdown do mês">
+              <GastosChart lancamentos={lancamentos} />
+            </Section>
+          )}
         </div>
 
-        {/* Coluna direita */}
-        <div className="space-y-8">
+        {/* Coluna 3: Fora do orçamento / mesada */}
+        <div className="space-y-8 md:col-span-2 xl:col-span-1">
           <Section title="Fora do orçamento oficial" description="Bônus à parte, nunca base do mês">
             <div className="rounded-xl border border-dashed bg-card/50 p-4 text-sm">
               <div className="flex items-baseline justify-between">
@@ -159,6 +191,147 @@ function Index() {
           </Section>
         </div>
       </div>
+    </div>
+  );
+}
+
+// ── Gráfico: distribuição do salário ──
+
+const SALARIO_COLORS = ["#22c55e", "#8b5cf6", "#f59e0b", "#3b82f6"];
+
+const salarioChartConfig: ChartConfig = {
+  investimentos: { label: "Investimentos", color: SALARIO_COLORS[0] as string },
+  viagem: { label: "Viagem", color: SALARIO_COLORS[1] as string },
+  contas: { label: "Contas fixas", color: SALARIO_COLORS[2] as string },
+  livre: { label: "Livre pra gastar", color: SALARIO_COLORS[3] as string },
+};
+
+function SalarioChart({
+  investimentos,
+  viagem,
+  contas,
+  livre,
+  total,
+}: {
+  investimentos: number;
+  viagem: number;
+  contas: number;
+  livre: number;
+  total: number;
+}) {
+  const data = [
+    { name: "investimentos", value: investimentos, pct: total > 0 ? ((investimentos / total) * 100).toFixed(1) : "0" },
+    { name: "viagem", value: viagem, pct: total > 0 ? ((viagem / total) * 100).toFixed(1) : "0" },
+    { name: "contas", value: contas, pct: total > 0 ? ((contas / total) * 100).toFixed(1) : "0" },
+    { name: "livre", value: Math.max(0, livre), pct: total > 0 ? ((Math.max(0, livre) / total) * 100).toFixed(1) : "0" },
+  ];
+
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <ChartContainer config={salarioChartConfig} className="mx-auto aspect-square max-h-[220px]">
+        <PieChart>
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value, name) => {
+                  const item = data.find((d) => d.name === name);
+                  return `${brl(Number(value))} (${item?.pct}%)`;
+                }}
+              />
+            }
+          />
+          <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} strokeWidth={2}>
+            {data.map((entry, idx) => (
+              <Cell key={entry.name} fill={SALARIO_COLORS[idx]} />
+            ))}
+          </Pie>
+        </PieChart>
+      </ChartContainer>
+      <ul className="mt-3 space-y-1.5">
+        {data.map((d, idx) => (
+          <li key={d.name} className="flex items-center gap-2 text-xs">
+            <span className="size-2.5 rounded-full" style={{ backgroundColor: SALARIO_COLORS[idx] }} />
+            <span className="flex-1 text-muted-foreground">{salarioChartConfig[d.name]?.label}</span>
+            <span className="num font-medium">{d.pct}%</span>
+            <span className="num text-muted-foreground">{brl(d.value)}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ── Gráfico: gastos por categoria ──
+
+const GASTOS_COLORS = [
+  "#ef4444",
+  "#f59e0b",
+  "#22c55e",
+  "#3b82f6",
+  "#a855f7",
+  "#ec4899",
+  "#14b8a6",
+  "#f97316",
+];
+
+function GastosChart({ lancamentos }: { lancamentos: Lancamento[] }) {
+  const { data: chartData, config } = useMemo(() => {
+    const mapa = new Map<string, number>();
+    for (const l of lancamentos) {
+      const cat = l.categoria.trim().toLowerCase();
+      mapa.set(cat, (mapa.get(cat) ?? 0) + l.valor);
+    }
+    const sorted = Array.from(mapa.entries())
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, 8);
+    const total = sorted.reduce((a, [, v]) => a + v, 0);
+
+    const items = sorted.map(([cat, valor], idx) => ({
+      name: cat,
+      value: valor,
+      pct: total > 0 ? ((valor / total) * 100).toFixed(1) : "0",
+      fill: GASTOS_COLORS[idx % GASTOS_COLORS.length],
+    }));
+
+    const cfg: ChartConfig = {};
+    for (const item of items) {
+      cfg[item.name] = { label: item.name, color: item.fill as string };
+    }
+
+    return { data: items, config: cfg };
+  }, [lancamentos]);
+
+  return (
+    <div className="rounded-xl border bg-card p-4">
+      <ChartContainer config={config} className="mx-auto aspect-square max-h-[220px]">
+        <PieChart>
+          <ChartTooltip
+            content={
+              <ChartTooltipContent
+                formatter={(value, name) => {
+                  const item = chartData.find((d) => d.name === name);
+                  return `${brl(Number(value))} (${item?.pct}%)`;
+                }}
+              />
+            }
+          />
+          <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} strokeWidth={2}>
+            {chartData.map((entry) => (
+              <Cell key={entry.name} fill={entry.fill} />
+            ))}
+          </Pie>
+        </PieChart>
+      </ChartContainer>
+      <ul className="mt-3 space-y-1.5">
+        {chartData.map((d) => (
+          <li key={d.name} className="flex items-center gap-2 text-xs">
+            <span className="size-2.5 rounded-full" style={{ backgroundColor: d.fill }} />
+            <span className="flex-1 capitalize text-muted-foreground">{d.name}</span>
+            <span className="num font-medium">{d.pct}%</span>
+            <span className="num text-muted-foreground">{brl(d.value)}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }

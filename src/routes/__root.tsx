@@ -8,7 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { LayoutDashboard, ListPlus, PiggyBank, Receipt } from "lucide-react";
+import { LayoutDashboard, ListPlus, PiggyBank, Receipt, Gamepad2 } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -119,6 +119,7 @@ const tabs = [
   { to: "/lancamentos", label: "Lançamentos", icon: ListPlus },
   { to: "/investimentos", label: "Investimentos", icon: PiggyBank },
   { to: "/contas", label: "Contas fixas", icon: Receipt },
+  { to: "/hobby", label: "Hobby", icon: Gamepad2 },
 ] as const;
 
 function RootComponent() {
@@ -161,7 +162,7 @@ function RootComponent() {
             <div className="sticky top-0 z-10 flex items-center justify-center border-b bg-background/95 py-2 backdrop-blur md:hidden">
               <MesPickerCompact />
             </div>
-            <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-8 md:py-8">
+            <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-8 md:py-8 xl:max-w-6xl 2xl:max-w-7xl">
               {/* Required: nested routes render here. */}
               <Outlet />
             </div>
@@ -169,7 +170,7 @@ function RootComponent() {
 
           {/* Bottom nav — mobile only */}
           <nav className="fixed inset-x-0 bottom-0 border-t bg-card/95 backdrop-blur md:hidden">
-            <div className="mx-auto grid max-w-2xl grid-cols-4">
+            <div className="mx-auto grid max-w-2xl grid-cols-5">
               {tabs.map(({ to, label, icon: Icon }) => (
                 <Link
                   key={to}

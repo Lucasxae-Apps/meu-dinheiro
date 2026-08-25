@@ -11,6 +11,7 @@
 import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as ContasRouteImport } from './routes/contas'
+import { Route as HobbyRouteImport } from './routes/hobby'
 import { Route as InvestimentosRouteImport } from './routes/investimentos'
 import { Route as LancamentosRouteImport } from './routes/lancamentos'
 
@@ -22,6 +23,11 @@ const IndexRoute = IndexRouteImport.update({
 const ContasRoute = ContasRouteImport.update({
   id: '/contas',
   path: '/contas',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const HobbyRoute = HobbyRouteImport.update({
+  id: '/hobby',
+  path: '/hobby',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InvestimentosRoute = InvestimentosRouteImport.update({
@@ -38,12 +44,14 @@ const LancamentosRoute = LancamentosRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/contas': typeof ContasRoute
+  '/hobby': typeof HobbyRoute
   '/investimentos': typeof InvestimentosRoute
   '/lancamentos': typeof LancamentosRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/contas': typeof ContasRoute
+  '/hobby': typeof HobbyRoute
   '/investimentos': typeof InvestimentosRoute
   '/lancamentos': typeof LancamentosRoute
 }
@@ -51,20 +59,23 @@ export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/contas': typeof ContasRoute
+  '/hobby': typeof HobbyRoute
   '/investimentos': typeof InvestimentosRoute
   '/lancamentos': typeof LancamentosRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/contas' | '/investimentos' | '/lancamentos'
+  fullPaths: '/' | '/contas' | '/hobby' | '/investimentos' | '/lancamentos'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/contas' | '/investimentos' | '/lancamentos'
-  id: '__root__' | '/' | '/contas' | '/investimentos' | '/lancamentos'
+  to: '/' | '/contas' | '/hobby' | '/investimentos' | '/lancamentos'
+  id:
+    '__root__' | '/' | '/contas' | '/hobby' | '/investimentos' | '/lancamentos'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   ContasRoute: typeof ContasRoute
+  HobbyRoute: typeof HobbyRoute
   InvestimentosRoute: typeof InvestimentosRoute
   LancamentosRoute: typeof LancamentosRoute
 }
@@ -83,6 +94,13 @@ declare module '@tanstack/react-router' {
       path: '/contas'
       fullPath: '/contas'
       preLoaderRoute: typeof ContasRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/hobby': {
+      id: '/hobby'
+      path: '/hobby'
+      fullPath: '/hobby'
+      preLoaderRoute: typeof HobbyRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/investimentos': {
@@ -105,6 +123,7 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   ContasRoute: ContasRoute,
+  HobbyRoute: HobbyRoute,
   InvestimentosRoute: InvestimentosRoute,
   LancamentosRoute: LancamentosRoute,
 }
