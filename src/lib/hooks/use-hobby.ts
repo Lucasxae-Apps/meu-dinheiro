@@ -351,3 +351,193 @@ export function useDeleteHobbyVenda() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_vendas"] }),
   });
 }
+
+// ── Types: Coleção e Metas ──
+
+export type CardTipo = "base" | "numbered" | "limited" | "auto" | "relic" | "insert";
+
+export type HobbyCard = {
+  id: string;
+  piloto: string;
+  nome: string;
+  setColecao: string;
+  tipo: CardTipo;
+  numeracao?: string | undefined;
+  valorPago?: number | undefined;
+  valorEstimado?: number | undefined;
+  dataAquisicao: string;
+  quantidade: number;
+  notas?: string | undefined;
+};
+
+export type HobbyMeta = {
+  id: string;
+  titulo: string;
+  descricao?: string | undefined;
+  total: number;
+  atual: number;
+  prazo?: string | undefined;
+  concluida: boolean;
+};
+
+// ── Coleção ──
+
+export function useHobbyColecao() {
+  return useQuery({
+    queryKey: ["hobby_colecao"],
+    queryFn: async (): Promise<HobbyCard[]> => {
+      const { data, error } = await supabase
+        .from("hobby_colecao")
+        .select("*")
+        .order("piloto")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id: r.id,
+        piloto: r.piloto,
+        nome: r.nome,
+        setColecao: r.set_colecao,
+        tipo: r.tipo as CardTipo,
+        numeracao: r.numeracao ?? undefined,
+        valorPago: r.valor_pago != null ? Number(r.valor_pago) : undefined,
+        valorEstimado: r.valor_estimado != null ? Number(r.valor_estimado) : undefined,
+        dataAquisicao: r.data_aquisicao,
+        quantidade: Number(r.quantidade),
+        notas: r.notas ?? undefined,
+      }));
+    },
+  });
+}
+
+export function useAddHobbyCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (card: Omit<HobbyCard, "id">) => {
+      const { error } = await supabase.from("hobby_colecao").insert({
+        piloto: card.piloto,
+        nome: card.nome,
+        set_colecao: card.setColecao,
+        tipo: card.tipo,
+        numeracao: card.numeracao ?? null,
+        valor_pago: card.valorPago ?? null,
+        valor_estimado: card.valorEstimado ?? null,
+        data_aquisicao: card.dataAquisicao,
+        quantidade: card.quantidade,
+        notas: card.notas ?? null,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_colecao"] }),
+  });
+}
+
+export function useUpdateHobbyCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (card: HobbyCard) => {
+      const { error } = await supabase
+        .from("hobby_colecao")
+        .update({
+          piloto: card.piloto,
+          nome: card.nome,
+          set_colecao: card.setColecao,
+          tipo: card.tipo,
+          numeracao: card.numeracao ?? null,
+          valor_pago: card.valorPago ?? null,
+          valor_estimado: card.valorEstimado ?? null,
+          data_aquisicao: card.dataAquisicao,
+          quantidade: card.quantidade,
+          notas: card.notas ?? null,
+        })
+        .eq("id", card.id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_colecao"] }),
+  });
+}
+
+export function useDeleteHobbyCard() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("hobby_colecao").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_colecao"] }),
+  });
+}
+
+// ── Metas ──
+
+export function useHobbyMetas() {
+  return useQuery({
+    queryKey: ["hobby_metas"],
+    queryFn: async (): Promise<HobbyMeta[]> => {
+      const { data, error } = await supabase
+        .from("hobby_metas")
+        .select("*")
+        .order("concluida")
+        .order("created_at", { ascending: false });
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id: r.id,
+        titulo: r.titulo,
+        descricao: r.descricao ?? undefined,
+        total: Number(r.total),
+        atual: Number(r.atual),
+        prazo: r.prazo ?? undefined,
+        concluida: Boolean(r.concluida),
+      }));
+    },
+  });
+}
+
+export function useAddHobbyMeta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (meta: Omit<HobbyMeta, "id">) => {
+      const { error } = await supabase.from("hobby_metas").insert({
+        titulo: meta.titulo,
+        descricao: meta.descricao ?? null,
+        total: meta.total,
+        atual: meta.atual,
+        prazo: meta.prazo ?? null,
+        concluida: meta.concluida,
+      });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_metas"] }),
+  });
+}
+
+export function useUpdateHobbyMeta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (meta: HobbyMeta) => {
+      const { error } = await supabase
+        .from("hobby_metas")
+        .update({
+          titulo: meta.titulo,
+          descricao: meta.descricao ?? null,
+          total: meta.total,
+          atual: meta.atual,
+          prazo: meta.prazo ?? null,
+          concluida: meta.concluida,
+        })
+        .eq("id", meta.id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_metas"] }),
+  });
+}
+
+export function useDeleteHobbyMeta() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("hobby_metas").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_metas"] }),
+  });
+}

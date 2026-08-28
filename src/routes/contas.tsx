@@ -12,6 +12,7 @@ import {
   useContasFixas,
   useTogglePago,
   useUpdatePagoEm,
+  useUpdateValorReal,
   useDespesasIrregulares,
   useAddDespesaIrregular,
   useDeleteDespesaIrregular,
@@ -49,6 +50,7 @@ function Contas() {
 
   const togglePago = useTogglePago(mes);
   const updatePagoEm = useUpdatePagoEm(mes);
+  const updateValorReal = useUpdateValorReal(mes);
   const addIrregular = useAddDespesaIrregular();
   const deleteIrregular = useDeleteDespesaIrregular();
   const addAssinatura = useAddAssinatura();
@@ -74,7 +76,7 @@ function Contas() {
   );
 
   const totalContas = contasComAssinaturas.reduce((a, c) => a + c.valor, 0);
-  const pago = contasComAssinaturas.filter((c) => c.pago).reduce((a, c) => a + c.valor, 0);
+  const pago = contasComAssinaturas.filter((c) => c.pago).reduce((a, c) => a + (c.valorReal ?? c.valor), 0);
 
   function adicionarAssinatura(e: React.FormEvent) {
     e.preventDefault();
@@ -131,19 +133,51 @@ function Contas() {
                     </Label>
                     {c.nota ? <p className="text-xs text-muted-foreground">{c.nota}</p> : null}
                   </div>
-                  <span className={`num text-sm font-semibold ${c.pago ? "text-muted-foreground line-through" : ""}`}>
-                    {brl(c.valor)}
-                  </span>
+                  <div className="text-right">
+                    <span className={`num text-sm font-semibold ${c.pago ? "text-muted-foreground line-through" : ""}`}>
+                      {brl(c.valor)}
+                    </span>
+                    {c.valorReal != null && c.valorReal < c.valor && (
+                      <p className="num text-xs text-positive">
+                        economizou {brl(c.valor - c.valorReal)}
+                      </p>
+                    )}
+                  </div>
                 </div>
                 {c.pago && (
-                  <Input
-                    type="date"
-                    className="h-9"
-                    value={c.pagoEm ?? ""}
-                    onChange={(e) =>
-                      updatePagoEm.mutate({ contaId: c.id, pagoEm: e.target.value })
-                    }
-                  />
+                  <div className="grid grid-cols-2 gap-2 pl-7">
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Pago em</Label>
+                      <Input
+                        type="date"
+                        className="h-8 text-xs"
+                        value={c.pagoEm ?? ""}
+                        onChange={(e) =>
+                          updatePagoEm.mutate({ contaId: c.id, pagoEm: e.target.value })
+                        }
+                      />
+                    </div>
+                    <div className="space-y-1">
+                      <Label className="text-xs text-muted-foreground">Valor real</Label>
+                      <Input
+                        className="h-8 text-xs"
+                        inputMode="decimal"
+                        placeholder={formatValorInput(c.valor)}
+                        defaultValue={c.valorReal != null ? formatValorInput(c.valorReal) : ""}
+                        onBlur={(e) => {
+                          const raw = e.target.value.trim();
+                          if (!raw) {
+                            updateValorReal.mutate({ contaId: c.id, valorReal: null });
+                            return;
+                          }
+                          const v = parseValor(raw);
+                          if (v >= 0) {
+                            updateValorReal.mutate({ contaId: c.id, valorReal: v });
+                          }
+                        }}
+                      />
+                    </div>
+                  </div>
                 )}
               </li>
             ))}

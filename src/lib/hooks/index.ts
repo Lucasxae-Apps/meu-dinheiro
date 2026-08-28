@@ -10,6 +10,7 @@ export {
   useTogglePago,
   useUpdatePagoEm,
   useUpsertContaFixa,
+  useUpdateValorReal,
 } from "./use-contas";
 export type { ContaComStatus } from "./use-contas";
 export {

@@ -2,7 +2,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../supabase";
 import type { ContaFixa } from "../finance";
 
-export type ContaComStatus = ContaFixa & { statusId?: string };
+export type ContaComStatus = ContaFixa & { statusId?: string; valorReal?: number };
 
 export function useContasFixas(mes: string) {
   return useQuery({
@@ -34,6 +34,7 @@ export function useContasFixas(mes: string) {
           nota: c.nota ?? undefined,
           pago: s?.pago ?? false,
           pagoEm: s?.pago_em ?? undefined,
+          valorReal: s?.valor_real != null ? Number(s.valor_real) : undefined,
           statusId: s?.id,
         };
       });
@@ -107,5 +108,24 @@ export function useUpsertContaFixa() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["contas_fixas"] }),
+  });
+}
+
+export function useUpdateValorReal(mes: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ contaId, valorReal }: { contaId: string; valorReal: number | null }) => {
+      const { error } = await supabase.from("contas_status").upsert(
+        {
+          conta_id: contaId,
+          mes,
+          pago: true,
+          valor_real: valorReal,
+        },
+        { onConflict: "conta_id,mes" },
+      );
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contas_fixas", mes] }),
   });
 }

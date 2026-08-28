@@ -63,7 +63,7 @@ function Index() {
     .reduce((a, i) => a + i.aporteMensal, 0);
   const aporteInvestReal = investimentosSemAluguel - aporteViagem;
   const salario = entradas.find((e) => e.id === "salario")?.valor ?? entradasOficiais;
-  const totalContas = contasComAssinaturas.reduce((a, c) => a + c.valor, 0);
+  const totalContas = contasComAssinaturas.reduce((a, c) => a + (c.valorReal ?? c.valor), 0);
   const comprometido = totalInvestimentos + totalContas;
   const livre = entradasOficiais - comprometido;
 
