@@ -2,7 +2,11 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "../supabase";
 import type { ContaFixa } from "../finance";
 
-export type ContaComStatus = ContaFixa & { statusId?: string; valorReal?: number };
+export type ContaComStatus = ContaFixa & {
+  statusId?: string;
+  valorReal?: number;
+  cartaoId?: string;
+};
 
 export function useContasFixas(mes: string) {
   return useQuery({
@@ -21,9 +25,7 @@ export function useContasFixas(mes: string) {
         .eq("mes", mes);
       if (e2) throw e2;
 
-      const statusMap = new Map(
-        (status ?? []).map((s) => [s.conta_id, s]),
-      );
+      const statusMap = new Map((status ?? []).map((s) => [s.conta_id, s]));
 
       return (contas ?? []).map((c) => {
         const s = statusMap.get(c.id);
@@ -36,6 +38,7 @@ export function useContasFixas(mes: string) {
           pagoEm: s?.pago_em ?? undefined,
           valorReal: s?.valor_real != null ? Number(s.valor_real) : undefined,
           statusId: s?.id,
+          cartaoId: c.cartao_id ?? undefined,
         };
       });
     },
@@ -127,5 +130,20 @@ export function useUpdateValorReal(mes: string) {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["contas_fixas", mes] }),
+  });
+}
+
+/** Define (ou limpa, com null) o cartão que paga uma conta fixa — apenas informativo. */
+export function useUpdateContaCartao(mes: string) {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async ({ contaId, cartaoId }: { contaId: string; cartaoId: string | null }) => {
+      const { error } = await supabase
+        .from("contas_fixas")
+        .update({ cartao_id: cartaoId })
+        .eq("id", contaId);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["contas_fixas"] }),
   });
 }

@@ -33,6 +33,7 @@ export function useLancamentos(mes: string) {
         nota: r.nota ?? undefined,
         meioPagamento: (r.meio_pagamento ?? "debito") as MeioPagamento,
         mesReferenciaFatura: r.mes_referencia_fatura ?? undefined,
+        cartaoId: r.cartao_id ?? undefined,
       }));
     },
   });
@@ -50,6 +51,7 @@ export function useAddLancamento(mes: string) {
         nota: lancamento.nota ?? null,
         meio_pagamento: lancamento.meioPagamento,
         mes_referencia_fatura: lancamento.mesReferenciaFatura ?? null,
+        cartao_id: lancamento.cartaoId ?? null,
       });
       if (error) throw error;
     },
@@ -70,6 +72,7 @@ export function useUpdateLancamento(mes: string) {
           nota: lancamento.nota ?? null,
           meio_pagamento: lancamento.meioPagamento,
           mes_referencia_fatura: lancamento.mesReferenciaFatura ?? null,
+          cartao_id: lancamento.cartaoId ?? null,
         })
         .eq("id", lancamento.id);
       if (error) throw error;

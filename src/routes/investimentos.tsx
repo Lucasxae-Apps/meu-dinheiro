@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Loader2, Pencil, Check, X } from "lucide-react";
+import { Loader2, Pencil, Check, X, CircleCheck, Circle } from "lucide-react";
 import { Bar, PageHeader, Section } from "@/components/fin";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -22,6 +22,9 @@ import {
   useSetInvestimentoMes,
   useConfiguracoes,
   useUpdateConfiguracoes,
+  useAportesFeitos,
+  useMarcarAporte,
+  useDesmarcarAporte,
 } from "@/lib/hooks";
 
 export const Route = createFileRoute("/investimentos")({
@@ -36,7 +39,8 @@ export const Route = createFileRoute("/investimentos")({
       { property: "og:title", content: "Investimentos e metas — Controle financeiro pessoal" },
       {
         property: "og:description",
-        content: "Reserva, Meta Itália, aluguel em renda fixa, dividendos e a Meta 100k em um lugar só.",
+        content:
+          "Reserva, Meta Itália, aluguel em renda fixa, dividendos e a Meta 100k em um lugar só.",
       },
     ],
   }),
@@ -50,9 +54,16 @@ function Investimentos() {
   const updateInv = useUpdateInvestimento();
   const setInvMes = useSetInvestimentoMes();
   const updateCfg = useUpdateConfiguracoes();
+  const { data: aportesFeitos = new Set<string>() } = useAportesFeitos(mes);
+  const marcarAporte = useMarcarAporte();
+  const desmarcarAporte = useDesmarcarAporte();
 
   const [editandoId, setEditandoId] = useState<string | null>(null);
-  const [rascunhoFields, setRascunhoFields] = useState({ aporteMensal: "", acumulado: "", alvo: "" });
+  const [rascunhoFields, setRascunhoFields] = useState({
+    aporteMensal: "",
+    acumulado: "",
+    alvo: "",
+  });
   const [editandoMeta, setEditandoMeta] = useState(false);
   const [rascunhoRendimento, setRascunhoRendimento] = useState("");
 
@@ -87,19 +98,16 @@ function Investimentos() {
     const novoAcumulado = parseValor(rascunhoFields.acumulado);
     const novoAlvo = inv.alvo !== undefined ? parseValor(rascunhoFields.alvo) : undefined;
 
-    // Se o aporte mudou, atualiza o valor base (vale pra frente)
-    // e salva o valor antigo como override do mês atual pra não alterar o passado
+    // Aporte tem vigência "deste mês em diante": grava um override no mês
+    // selecionado com o NOVO valor. Meses anteriores continuam com o valor
+    // que já estava vigente (base ou override anterior), então o passado não muda.
     if (novoAporte !== inv.aporteMensal) {
-      // Fixa o valor que estava sendo exibido neste mês como override
-      // (preserva o histórico deste mês e anteriores)
-      setInvMes.mutate({ investimentoId: inv.id, mes, aporteMensal: inv.aporteMensal });
-      // Atualiza o valor base (daqui pra frente, meses sem override usam o novo)
-      updateInv.mutate({ ...inv, aporteMensal: novoAporte, acumulado: novoAcumulado, alvo: novoAlvo });
-    } else {
-      // Só acumulado/alvo mudaram — atualiza direto
-      if (novoAcumulado !== inv.acumulado || novoAlvo !== inv.alvo) {
-        updateInv.mutate({ ...inv, acumulado: novoAcumulado, alvo: novoAlvo });
-      }
+      setInvMes.mutate({ investimentoId: inv.id, mes, aporteMensal: novoAporte });
+    }
+
+    // Acumulado e alvo não têm recorte mensal — atualiza direto na base.
+    if (novoAcumulado !== inv.acumulado || novoAlvo !== inv.alvo) {
+      updateInv.mutate({ ...inv, acumulado: novoAcumulado, alvo: novoAlvo });
     }
 
     setEditandoId(null);
@@ -140,6 +148,21 @@ function Investimentos() {
           {investimentos.map((i) => {
             const pct = i.alvo ? (i.acumulado / i.alvo) * 100 : null;
             const isEditing = editandoId === i.id;
+            const feito = aportesFeitos.has(i.id);
+            const togglePending = marcarAporte.isPending || desmarcarAporte.isPending;
+
+            function toggleAporte() {
+              if (feito) {
+                desmarcarAporte.mutate({ investimentoId: i.id, mes, acumuladoAtual: i.acumulado });
+              } else {
+                marcarAporte.mutate({
+                  investimentoId: i.id,
+                  mes,
+                  aporte: i.aporteMensal,
+                  acumuladoAtual: i.acumulado,
+                });
+              }
+            }
 
             return (
               <div key={i.id} className="space-y-3 rounded-xl border bg-card p-4">
@@ -158,6 +181,31 @@ function Investimentos() {
                     </button>
                   )}
                 </div>
+
+                {!isEditing && (
+                  <button
+                    type="button"
+                    onClick={toggleAporte}
+                    disabled={togglePending}
+                    className={`flex w-full items-center gap-2 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
+                      feito
+                        ? "border-positive/40 bg-positive/10 text-positive"
+                        : "bg-secondary/50 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {togglePending ? (
+                      <Loader2 className="size-4 animate-spin" />
+                    ) : feito ? (
+                      <CircleCheck className="size-4" />
+                    ) : (
+                      <Circle className="size-4" />
+                    )}
+                    <span className="flex-1">
+                      {feito ? "Aporte deste mês investido" : "Marcar aporte como investido"}
+                    </span>
+                    <span className="num font-medium">{brl(i.aporteMensal)}</span>
+                  </button>
+                )}
 
                 {isEditing ? (
                   <>

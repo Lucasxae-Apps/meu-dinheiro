@@ -78,10 +78,9 @@ export function useUpsertHobbyBudget() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async ({ mes, valorLimite }: { mes: string; valorLimite: number }) => {
-      const { error } = await supabase.from("hobby_budget").upsert(
-        { mes, valor_limite: valorLimite },
-        { onConflict: "mes" },
-      );
+      const { error } = await supabase
+        .from("hobby_budget")
+        .upsert({ mes, valor_limite: valorLimite }, { onConflict: "mes" });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_budget"] }),
@@ -361,6 +360,7 @@ export type HobbyCard = {
   piloto: string;
   nome: string;
   setColecao: string;
+  binder: string;
   tipo: CardTipo;
   numeracao?: string | undefined;
   valorPago?: number | undefined;
@@ -368,6 +368,14 @@ export type HobbyCard = {
   dataAquisicao: string;
   quantidade: number;
   notas?: string | undefined;
+};
+
+export type HobbyBinder = {
+  id: string;
+  nome: string;
+  cor: string;
+  slots: number;
+  ordem: number;
 };
 
 export type HobbyMeta = {
@@ -397,6 +405,7 @@ export function useHobbyColecao() {
         piloto: r.piloto,
         nome: r.nome,
         setColecao: r.set_colecao,
+        binder: r.binder ?? "Outros",
         tipo: r.tipo as CardTipo,
         numeracao: r.numeracao ?? undefined,
         valorPago: r.valor_pago != null ? Number(r.valor_pago) : undefined,
@@ -417,6 +426,7 @@ export function useAddHobbyCard() {
         piloto: card.piloto,
         nome: card.nome,
         set_colecao: card.setColecao,
+        binder: card.binder,
         tipo: card.tipo,
         numeracao: card.numeracao ?? null,
         valor_pago: card.valorPago ?? null,
@@ -441,6 +451,7 @@ export function useUpdateHobbyCard() {
           piloto: card.piloto,
           nome: card.nome,
           set_colecao: card.setColecao,
+          binder: card.binder,
           tipo: card.tipo,
           numeracao: card.numeracao ?? null,
           valor_pago: card.valorPago ?? null,
@@ -539,5 +550,55 @@ export function useDeleteHobbyMeta() {
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_metas"] }),
+  });
+}
+
+// ── Binders ──
+
+export function useHobbyBinders() {
+  return useQuery({
+    queryKey: ["hobby_binders"],
+    queryFn: async (): Promise<HobbyBinder[]> => {
+      const { data, error } = await supabase.from("hobby_binders").select("*").order("ordem");
+      if (error) throw error;
+      return (data ?? []).map((r) => ({
+        id: r.id,
+        nome: r.nome,
+        cor: r.cor ?? "#6366f1",
+        slots: Number(r.slots ?? 9),
+        ordem: Number(r.ordem ?? 0),
+      }));
+    },
+  });
+}
+
+export function useUpsertHobbyBinder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (binder: Omit<HobbyBinder, "id"> & { id?: string }) => {
+      const payload: Record<string, unknown> = {
+        nome: binder.nome,
+        cor: binder.cor,
+        slots: binder.slots,
+        ordem: binder.ordem,
+      };
+      if (binder.id) payload["id"] = binder.id;
+      const { error } = await supabase
+        .from("hobby_binders")
+        .upsert(payload, { onConflict: "nome" });
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_binders"] }),
+  });
+}
+
+export function useDeleteHobbyBinder() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (id: string) => {
+      const { error } = await supabase.from("hobby_binders").delete().eq("id", id);
+      if (error) throw error;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["hobby_binders"] }),
   });
 }

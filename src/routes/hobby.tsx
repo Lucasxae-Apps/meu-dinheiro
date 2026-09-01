@@ -11,6 +11,8 @@ import {
   Trash2,
   TrendingUp,
   X,
+  LayoutGrid,
+  BookOpen,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,22 +43,29 @@ import {
   useAddHobbyMeta,
   useUpdateHobbyMeta,
   useDeleteHobbyMeta,
+  useHobbyBinders,
   type HobbyCategoria,
   type HobbyTipoCompra,
   type WishlistPrioridade,
   type VendaStatus,
   type HobbyEstoque,
   type HobbyVenda,
+  type HobbyCompra,
+  type HobbyWishlistItem,
   type HobbyCard,
   type CardTipo,
   type HobbyMeta,
+  type HobbyBinder,
 } from "@/lib/hooks/use-hobby";
 
 export const Route = createFileRoute("/hobby")({
   head: () => ({
     meta: [
       { title: "Hobby — Controle financeiro pessoal" },
-      { name: "description", content: "Colecionáveis: orçamento, wishlist, compras, estoque e vendas." },
+      {
+        name: "description",
+        content: "Colecionáveis: orçamento, wishlist, compras, estoque e vendas.",
+      },
     ],
   }),
   component: Hobby,
@@ -73,8 +82,16 @@ const CATEGORIAS: { value: HobbyCategoria; label: string }[] = [
 const PRIORIDADES: { value: WishlistPrioridade; label: string; color: string }[] = [
   { value: "favorito", label: "favorito", color: "bg-red-500/20 text-red-400 border-red-500/30" },
   { value: "raro", label: "raro", color: "bg-red-500/20 text-red-400 border-red-500/30" },
-  { value: "completar_time", label: "completar time", color: "bg-blue-500/20 text-blue-400 border-blue-500/30" },
-  { value: "visual", label: "visual", color: "bg-purple-500/20 text-purple-400 border-purple-500/30" },
+  {
+    value: "completar_time",
+    label: "completar time",
+    color: "bg-blue-500/20 text-blue-400 border-blue-500/30",
+  },
+  {
+    value: "visual",
+    label: "visual",
+    color: "bg-purple-500/20 text-purple-400 border-purple-500/30",
+  },
 ];
 
 const CAT_COLORS: Record<HobbyCategoria, string> = {
@@ -114,6 +131,7 @@ function Hobby() {
   const { data: vendas = [], isLoading: lv } = useHobbyVendas();
   const { data: colecao = [], isLoading: lCol } = useHobbyColecao();
   const { data: metas = [], isLoading: lMet } = useHobbyMetas();
+  const { data: binders = [], isLoading: lBin } = useHobbyBinders();
 
   const upsertBudget = useUpsertHobbyBudget();
   const addCompra = useAddHobbyCompra(mes);
@@ -132,7 +150,9 @@ function Hobby() {
   const updateMeta = useUpdateHobbyMeta();
   const deleteMeta = useDeleteHobbyMeta();
 
-  const isLoading = lb || lc || lw || le || lv || lCol || lMet;
+  const isLoading = lb || lc || lw || le || lv || lCol || lMet || lBin;
+
+  const [abaAtiva, setAbaAtiva] = useState<"geral" | "binders">("geral");
 
   // Budget derived
   const limite = budget?.valorLimite ?? 300;
@@ -151,7 +171,10 @@ function Hobby() {
   // Wishlist sorted
   const prioridadeOrdem: WishlistPrioridade[] = ["favorito", "raro", "completar_time", "visual"];
   const sortedWishlist = useMemo(
-    () => [...wishlist].sort((a, b) => prioridadeOrdem.indexOf(a.prioridade) - prioridadeOrdem.indexOf(b.prioridade)),
+    () =>
+      [...wishlist].sort(
+        (a, b) => prioridadeOrdem.indexOf(a.prioridade) - prioridadeOrdem.indexOf(b.prioridade),
+      ),
     [wishlist],
   );
   const p1Item = sortedWishlist[0];
@@ -216,243 +239,273 @@ function Hobby() {
         </div>
       </header>
 
-      {/* Desktop: 2 rows layout */}
-      {/* Row 1: Hero + Cost vs Market + Metas */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {/* Hero Card */}
-        <div className="rounded-xl border bg-card p-5">
-          <div className="flex items-start justify-between">
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Ainda posso gastar
-            </p>
-            <BudgetEditor mes={mes} limite={limite} onSave={(v) => upsertBudget.mutate({ mes, valorLimite: v })} />
-          </div>
-          <p className={`num mt-1 text-3xl font-bold ${restante < 0 ? "text-destructive" : "text-foreground"}`}>
-            {brl(restante)}
-          </p>
-          <p className="num mt-1.5 text-xs text-muted-foreground">
-            {brl(gastoTotal)} de {brl(limite)} usados · {compras.length} compra(s)
-          </p>
-          {gastoTotal > 0 && (
-            <div className="mt-3 space-y-1.5">
-              <div className="flex h-2 overflow-hidden rounded-full bg-muted">
-                {CATEGORIAS.map(({ value }) => {
-                  const val = gastoPorCategoria.get(value) ?? 0;
-                  if (val === 0) return null;
-                  return (
-                    <div
-                      key={value}
-                      className="h-full transition-all"
-                      style={{ width: `${Math.min((val / limite) * 100, 100)}%`, backgroundColor: CAT_COLORS[value] }}
-                    />
-                  );
-                })}
-              </div>
-              <div className="flex flex-wrap gap-x-3 gap-y-0.5">
-                {CATEGORIAS.map(({ value, label }) => {
-                  const val = gastoPorCategoria.get(value) ?? 0;
-                  if (val === 0) return null;
-                  return (
-                    <span key={value} className="flex items-center gap-1 text-[10px] text-muted-foreground">
-                      <span className="size-1.5 rounded-full" style={{ backgroundColor: CAT_COLORS[value] }} />
-                      {label}: <span className="num font-medium text-foreground">{brl(val)}</span>
-                    </span>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-        </div>
-
-        {/* Custo vs Mercado */}
-        <div className="rounded-xl border bg-card p-5">
-          <div className="flex items-center gap-2">
-            <TrendingUp className="size-4 text-muted-foreground" />
-            <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-              Acervo
-            </p>
-          </div>
-          <div className="mt-3 grid grid-cols-2 gap-3">
-            <div>
-              <p className="text-[10px] text-muted-foreground">Investido</p>
-              <p className="num text-lg font-bold">{brl(totalPago)}</p>
-            </div>
-            <div>
-              <p className="text-[10px] text-muted-foreground">Valor atual</p>
-              <p className="num text-lg font-bold">{brl(totalMercado)}</p>
-            </div>
-          </div>
-          <div className="mt-3 flex items-baseline justify-between border-t pt-3">
-            <span className="text-[10px] text-muted-foreground">{totalCards} cards no acervo</span>
-            <span className={`num text-sm font-semibold ${lucroColecao >= 0 ? "text-positive" : "text-destructive"}`}>
-              {lucroColecao >= 0 ? "+" : ""}{brl(lucroColecao)}
-            </span>
-          </div>
-        </div>
-
-        {/* Metas */}
-        <div className="space-y-3 md:col-span-2 xl:col-span-1">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Target className="size-4 text-muted-foreground" />
-              <h2 className="text-sm font-semibold tracking-tight">Metas</h2>
-            </div>
-            <MetaForm onAdd={(m) => addMeta.mutate(m)} />
-          </div>
-          <div className="space-y-2">
-            {metas.length === 0 && (
-              <p className="rounded-xl border bg-card/50 p-3 text-xs text-muted-foreground">
-                Nenhuma meta definida.
-              </p>
-            )}
-            {metas.filter((m) => !m.concluida).map((m) => {
-              const pct = m.total > 0 ? (m.atual / m.total) * 100 : 0;
-              return (
-                <div key={m.id} className="rounded-xl border bg-card p-3">
-                  <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-xs font-medium">{m.titulo}</p>
-                      {m.descricao && <p className="truncate text-[10px] text-muted-foreground">{m.descricao}</p>}
-                    </div>
-                    <span className="num whitespace-nowrap text-[10px] text-muted-foreground">
-                      {m.atual}/{m.total}
-                    </span>
-                  </div>
-                  <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-muted">
-                    <div
-                      className="h-full rounded-full bg-primary transition-all"
-                      style={{ width: `${Math.min(pct, 100)}%` }}
-                    />
-                  </div>
-                  <div className="mt-1.5 flex items-center justify-between">
-                    <span className="num text-[10px] text-muted-foreground">{pct.toFixed(0)}%</span>
-                    <div className="flex gap-1">
-                      <button
-                        className="text-[10px] text-muted-foreground hover:text-foreground"
-                        onClick={() => updateMeta.mutate({ ...m, atual: Math.min(m.atual + 1, m.total) })}
-                      >
-                        +1
-                      </button>
-                      <button
-                        className="text-muted-foreground hover:text-positive"
-                        onClick={() => updateMeta.mutate({ ...m, concluida: true })}
-                        aria-label="Concluir meta"
-                      >
-                        <Check className="size-3" />
-                      </button>
-                      <button
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => deleteMeta.mutate(m.id)}
-                        aria-label="Remover meta"
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
+      {/* Sub-abas */}
+      <div className="flex gap-1 rounded-xl border bg-card p-1">
+        <button
+          onClick={() => setAbaAtiva("geral")}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+            abaAtiva === "geral"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <LayoutGrid className="size-4" /> Visão geral
+        </button>
+        <button
+          onClick={() => setAbaAtiva("binders")}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+            abaAtiva === "binders"
+              ? "bg-primary text-primary-foreground"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <BookOpen className="size-4" /> Binders
+        </button>
       </div>
 
-      {/* Row 2: Coleção, Compras agrupadas, Wishlist + Estoque + Vendas */}
-      <div className="grid gap-6 xl:grid-cols-3">
-        {/* Col 1: Coleção por piloto */}
-        <section className="space-y-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-semibold tracking-tight">Coleção</h2>
-              <p className="text-xs text-muted-foreground">{totalCards} cards · por piloto</p>
-            </div>
-            <CardForm onAdd={(c) => addCard.mutate(c)} isPending={addCard.isPending} />
-          </div>
-          <div className="space-y-3 xl:max-h-[calc(100vh-360px)] xl:overflow-y-auto xl:pr-1">
-            {colecaoPorPiloto.length === 0 && (
-              <p className="rounded-xl border bg-card/50 p-4 text-sm text-muted-foreground">
-                Nenhum card catalogado.
-              </p>
-            )}
-            {colecaoPorPiloto.map(([piloto, cards]) => (
-              <div key={piloto} className="rounded-xl border bg-card">
-                <div className="flex items-baseline justify-between border-b px-3 py-2">
-                  <span className="text-xs font-semibold">{piloto}</span>
-                  <span className="num text-[10px] text-muted-foreground">{cards.length} card(s)</span>
-                </div>
-                <ul className="divide-y">
-                  {cards.map((card) => (
-                    <li key={card.id} className="flex items-center gap-2 px-3 py-2">
-                      <div className="min-w-0 flex-1">
-                        <p className="truncate text-xs">{card.nome}</p>
-                        <div className="mt-0.5 flex items-center gap-1.5">
-                          <span className={`rounded-full border px-1.5 py-0 text-[9px] font-medium ${TIPO_COLORS[card.tipo]}`}>
-                            {card.tipo}{card.numeracao ? ` ${card.numeracao}` : ""}
-                          </span>
-                          <span className="text-[9px] text-muted-foreground">{card.setColecao}</span>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        {card.valorEstimado != null && (
-                          <p className="num text-xs font-medium">{brl(card.valorEstimado)}</p>
-                        )}
-                        {card.valorPago != null && card.valorEstimado != null && card.valorEstimado > card.valorPago && (
-                          <p className="num text-[9px] text-positive">
-                            +{brl(card.valorEstimado - card.valorPago)}
-                          </p>
-                        )}
-                      </div>
-                      <button
-                        aria-label="Remover card"
-                        className="text-muted-foreground hover:text-destructive"
-                        onClick={() => deleteCard.mutate(card.id)}
-                      >
-                        <Trash2 className="size-3" />
-                      </button>
-                    </li>
-                  ))}
-                </ul>
+      {abaAtiva === "binders" ? (
+        <BindersView
+          binders={binders}
+          colecao={colecao}
+          onAddCard={(c) => addCard.mutate(c)}
+          onDeleteCard={(id) => deleteCard.mutate(id)}
+          addPending={addCard.isPending}
+        />
+      ) : (
+        <>
+          {/* Desktop: 2 rows layout */}
+          {/* Row 1: Hero + Cost vs Market + Metas */}
+          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {/* Hero Card */}
+            <div className="rounded-xl border bg-card p-5">
+              <div className="flex items-start justify-between">
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Ainda posso gastar
+                </p>
+                <BudgetEditor
+                  mes={mes}
+                  limite={limite}
+                  onSave={(v) => upsertBudget.mutate({ mes, valorLimite: v })}
+                />
               </div>
-            ))}
-          </div>
-        </section>
-
-        {/* Col 2: Boxes desse mês (agrupado por data) + Wishlist */}
-        <div className="space-y-6">
-          <section>
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold tracking-tight">Boxes desse mês</h2>
-              <p className="text-xs text-muted-foreground">
-                {compras.length} item(ns) · {brl(gastoTotal)}
+              <p
+                className={`num mt-1 text-3xl font-bold ${restante < 0 ? "text-destructive" : "text-foreground"}`}
+              >
+                {brl(restante)}
               </p>
-            </div>
-            <div className="space-y-2 xl:max-h-[calc(100vh-440px)] xl:overflow-y-auto xl:pr-1">
-              {comprasAgrupadas.length === 0 && (
-                <div className="flex items-center justify-center rounded-xl border bg-card/50 p-8">
-                  <p className="text-sm text-muted-foreground">Garagem vazia esse mês.</p>
+              <p className="num mt-1.5 text-xs text-muted-foreground">
+                {brl(gastoTotal)} de {brl(limite)} usados · {compras.length} compra(s)
+              </p>
+              {gastoTotal > 0 && (
+                <div className="mt-3 space-y-1.5">
+                  <div className="flex h-2 overflow-hidden rounded-full bg-muted">
+                    {CATEGORIAS.map(({ value }) => {
+                      const val = gastoPorCategoria.get(value) ?? 0;
+                      if (val === 0) return null;
+                      return (
+                        <div
+                          key={value}
+                          className="h-full transition-all"
+                          style={{
+                            width: `${Math.min((val / limite) * 100, 100)}%`,
+                            backgroundColor: CAT_COLORS[value],
+                          }}
+                        />
+                      );
+                    })}
+                  </div>
+                  <div className="flex flex-wrap gap-x-3 gap-y-0.5">
+                    {CATEGORIAS.map(({ value, label }) => {
+                      const val = gastoPorCategoria.get(value) ?? 0;
+                      if (val === 0) return null;
+                      return (
+                        <span
+                          key={value}
+                          className="flex items-center gap-1 text-[10px] text-muted-foreground"
+                        >
+                          <span
+                            className="size-1.5 rounded-full"
+                            style={{ backgroundColor: CAT_COLORS[value] }}
+                          />
+                          {label}:{" "}
+                          <span className="num font-medium text-foreground">{brl(val)}</span>
+                        </span>
+                      );
+                    })}
+                  </div>
                 </div>
               )}
-              {comprasAgrupadas.map(([data, items]) => {
-                const totalGrupo = items.reduce((a, c) => a + c.valor, 0);
-                return (
-                  <div key={data} className="rounded-xl border bg-card">
+            </div>
+
+            {/* Custo vs Mercado */}
+            <div className="rounded-xl border bg-card p-5">
+              <div className="flex items-center gap-2">
+                <TrendingUp className="size-4 text-muted-foreground" />
+                <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                  Acervo
+                </p>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-3">
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Investido</p>
+                  <p className="num text-lg font-bold">{brl(totalPago)}</p>
+                </div>
+                <div>
+                  <p className="text-[10px] text-muted-foreground">Valor atual</p>
+                  <p className="num text-lg font-bold">{brl(totalMercado)}</p>
+                </div>
+              </div>
+              <div className="mt-3 flex items-baseline justify-between border-t pt-3">
+                <span className="text-[10px] text-muted-foreground">
+                  {totalCards} cards no acervo
+                </span>
+                <span
+                  className={`num text-sm font-semibold ${lucroColecao >= 0 ? "text-positive" : "text-destructive"}`}
+                >
+                  {lucroColecao >= 0 ? "+" : ""}
+                  {brl(lucroColecao)}
+                </span>
+              </div>
+            </div>
+
+            {/* Metas */}
+            <div className="space-y-3 md:col-span-2 xl:col-span-1">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <Target className="size-4 text-muted-foreground" />
+                  <h2 className="text-sm font-semibold tracking-tight">Metas</h2>
+                </div>
+                <MetaForm onAdd={(m) => addMeta.mutate(m)} />
+              </div>
+              <div className="space-y-2">
+                {metas.length === 0 && (
+                  <p className="rounded-xl border bg-card/50 p-3 text-xs text-muted-foreground">
+                    Nenhuma meta definida.
+                  </p>
+                )}
+                {metas
+                  .filter((m) => !m.concluida)
+                  .map((m) => {
+                    const pct = m.total > 0 ? (m.atual / m.total) * 100 : 0;
+                    return (
+                      <div key={m.id} className="rounded-xl border bg-card p-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs font-medium">{m.titulo}</p>
+                            {m.descricao && (
+                              <p className="truncate text-[10px] text-muted-foreground">
+                                {m.descricao}
+                              </p>
+                            )}
+                          </div>
+                          <span className="num whitespace-nowrap text-[10px] text-muted-foreground">
+                            {m.atual}/{m.total}
+                          </span>
+                        </div>
+                        <div className="mt-2 flex h-1.5 overflow-hidden rounded-full bg-muted">
+                          <div
+                            className="h-full rounded-full bg-primary transition-all"
+                            style={{ width: `${Math.min(pct, 100)}%` }}
+                          />
+                        </div>
+                        <div className="mt-1.5 flex items-center justify-between">
+                          <span className="num text-[10px] text-muted-foreground">
+                            {pct.toFixed(0)}%
+                          </span>
+                          <div className="flex gap-1">
+                            <button
+                              className="text-[10px] text-muted-foreground hover:text-foreground"
+                              onClick={() =>
+                                updateMeta.mutate({ ...m, atual: Math.min(m.atual + 1, m.total) })
+                              }
+                            >
+                              +1
+                            </button>
+                            <button
+                              className="text-muted-foreground hover:text-positive"
+                              onClick={() => updateMeta.mutate({ ...m, concluida: true })}
+                              aria-label="Concluir meta"
+                            >
+                              <Check className="size-3" />
+                            </button>
+                            <button
+                              className="text-muted-foreground hover:text-destructive"
+                              onClick={() => deleteMeta.mutate(m.id)}
+                              aria-label="Remover meta"
+                            >
+                              <Trash2 className="size-3" />
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          </div>
+
+          {/* Row 2: Coleção, Compras agrupadas, Wishlist + Estoque + Vendas */}
+          <div className="grid gap-6 xl:grid-cols-3">
+            {/* Col 1: Coleção por piloto */}
+            <section className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-sm font-semibold tracking-tight">Coleção</h2>
+                  <p className="text-xs text-muted-foreground">{totalCards} cards · por piloto</p>
+                </div>
+                <CardForm
+                  onAdd={(c) => addCard.mutate(c)}
+                  isPending={addCard.isPending}
+                  binders={binders}
+                />
+              </div>
+              <div className="space-y-3 xl:max-h-[calc(100vh-360px)] xl:overflow-y-auto xl:pr-1">
+                {colecaoPorPiloto.length === 0 && (
+                  <p className="rounded-xl border bg-card/50 p-4 text-sm text-muted-foreground">
+                    Nenhum card catalogado.
+                  </p>
+                )}
+                {colecaoPorPiloto.map(([piloto, cards]) => (
+                  <div key={piloto} className="rounded-xl border bg-card">
                     <div className="flex items-baseline justify-between border-b px-3 py-2">
-                      <span className="text-[10px] text-muted-foreground">
-                        {data.split("-").reverse().join("/")}
-                      </span>
-                      <span className="num text-[10px] font-medium">
-                        {items.length} item(ns) · {brl(totalGrupo)}
+                      <span className="text-xs font-semibold">{piloto}</span>
+                      <span className="num text-[10px] text-muted-foreground">
+                        {cards.length} card(s)
                       </span>
                     </div>
                     <ul className="divide-y">
-                      {items.map((c) => (
-                        <li key={c.id} className="flex items-center gap-2 px-3 py-2">
-                          <span className="size-2 rounded-full" style={{ backgroundColor: CAT_COLORS[c.categoria] }} />
-                          <span className="min-w-0 flex-1 truncate text-xs">{c.descricao}</span>
-                          <span className="num text-xs font-medium">{brl(c.valor)}</span>
+                      {cards.map((card) => (
+                        <li key={card.id} className="flex items-center gap-2 px-3 py-2">
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-xs">{card.nome}</p>
+                            <div className="mt-0.5 flex items-center gap-1.5">
+                              <span
+                                className={`rounded-full border px-1.5 py-0 text-[9px] font-medium ${TIPO_COLORS[card.tipo]}`}
+                              >
+                                {card.tipo}
+                                {card.numeracao ? ` ${card.numeracao}` : ""}
+                              </span>
+                              <span className="text-[9px] text-muted-foreground">
+                                {card.setColecao}
+                              </span>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            {card.valorEstimado != null && (
+                              <p className="num text-xs font-medium">{brl(card.valorEstimado)}</p>
+                            )}
+                            {card.valorPago != null &&
+                              card.valorEstimado != null &&
+                              card.valorEstimado > card.valorPago && (
+                                <p className="num text-[9px] text-positive">
+                                  +{brl(card.valorEstimado - card.valorPago)}
+                                </p>
+                              )}
+                          </div>
                           <button
-                            aria-label="Remover"
+                            aria-label="Remover card"
                             className="text-muted-foreground hover:text-destructive"
-                            onClick={() => deleteCompra.mutate(c.id)}
+                            onClick={() => deleteCard.mutate(card.id)}
                           >
                             <Trash2 className="size-3" />
                           </button>
@@ -460,159 +513,412 @@ function Hobby() {
                       ))}
                     </ul>
                   </div>
-                );
-              })}
-            </div>
-            <div className="mt-3">
-              <CompraForm onAdd={(c) => addCompra.mutate(c)} isPending={addCompra.isPending} />
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
 
-          {/* Wishlist */}
-          <section>
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold tracking-tight">Wishlist</h2>
-              <p className="text-xs text-muted-foreground">
-                {sortedWishlist.length} na fila · favorito primeiro
-              </p>
-            </div>
-            <div className="space-y-2">
-              {sortedWishlist.length === 0 && (
-                <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
-                  Wishlist vazia — bora preencher!
-                </p>
-              )}
-              {sortedWishlist.map((item, idx) => {
-                const prioColor = PRIORIDADES.find((p) => p.value === item.prioridade)?.color ?? "";
-                const prioLabel = PRIORIDADES.find((p) => p.value === item.prioridade)?.label ?? "";
-                return (
-                  <div key={item.id} className="flex items-center gap-3 rounded-xl border bg-card p-3">
-                    <span className="num text-xs font-medium text-muted-foreground">P{idx + 1}</span>
-                    <div className="min-w-0 flex-1">
-                      <p className="truncate text-sm font-medium">{item.nome}</p>
-                      <span className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${prioColor}`}>
-                        {prioLabel}
-                      </span>
-                    </div>
-                    <span className="num text-sm text-muted-foreground">
-                      {item.precoMedio ? `~${brl(item.precoMedio)}` : "a definir"}
-                    </span>
-                    <button
-                      aria-label="Comprado"
-                      className="text-muted-foreground hover:text-positive"
-                      onClick={() => updateWishlist.mutate({ ...item, status: "comprado" })}
-                    >
-                      <Check className="size-4" />
-                    </button>
-                    <button
-                      aria-label="Remover"
-                      className="text-muted-foreground hover:text-destructive"
-                      onClick={() => deleteWishlist.mutate(item.id)}
-                    >
-                      <Trash2 className="size-4" />
-                    </button>
-                  </div>
-                );
-              })}
-            </div>
-            <div className="mt-3">
-              <WishlistForm onAdd={(item) => addWishlist.mutate(item)} isPending={addWishlist.isPending} />
-            </div>
-          </section>
-        </div>
-
-        {/* Col 3: Estoque + Vendas */}
-        <div className="space-y-6 md:col-span-2 xl:col-span-1">
-          {/* Estoque */}
-          <section>
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold tracking-tight">Estoque de acessórios</h2>
-              <p className="text-xs text-muted-foreground">sleeves, top loaders</p>
-            </div>
-            <div className="grid grid-cols-2 gap-3">
-              {estoque.map((item) => {
-                const isLow = item.quantidade <= item.quantidadeMinima;
-                return (
-                  <div
-                    key={item.id}
-                    className={`rounded-xl border p-4 ${isLow ? "border-red-500/40 bg-red-500/5" : "bg-card"}`}
-                  >
-                    <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
-                      {item.tipo.replace(/_/g, " ")}
-                    </p>
-                    <div className="mt-1 flex items-center gap-2">
-                      <button
-                        className="rounded border px-1.5 py-0.5 text-xs hover:bg-accent"
-                        onClick={() => upsertEstoque.mutate({ ...item, quantidade: Math.max(0, item.quantidade - 1) })}
-                      >
-                        −
-                      </button>
-                      <span className={`num text-2xl font-bold ${isLow ? "text-red-400" : "text-foreground"}`}>
-                        {item.quantidade}
-                      </span>
-                      <button
-                        className="rounded border px-1.5 py-0.5 text-xs hover:bg-accent"
-                        onClick={() => upsertEstoque.mutate({ ...item, quantidade: item.quantidade + 1 })}
-                      >
-                        +
-                      </button>
-                    </div>
-                    {isLow && <p className="mt-1 text-[10px] font-medium text-red-400">estoque baixo</p>}
-                  </div>
-                );
-              })}
-            </div>
-            {estoque.length === 0 && (
-              <p className="mt-2 text-sm text-muted-foreground">Nenhum acessório cadastrado.</p>
-            )}
-            <div className="mt-3">
-              <EstoqueForm onAdd={(e) => addEstoque.mutate(e)} />
-            </div>
-          </section>
-
-          {/* Vendendo */}
-          <section>
-            <div className="mb-3">
-              <h2 className="text-sm font-semibold tracking-tight">Vendendo</h2>
-              <p className="text-xs text-muted-foreground">
-                {vendas.length} iten(s) · {brl(totalPendente)} a receber
-              </p>
-            </div>
-            <div className="space-y-2">
-              {vendas.length === 0 && (
-                <div className="flex items-center justify-center rounded-xl border bg-card/50 p-6">
-                  <p className="text-sm text-muted-foreground">Nenhuma venda registrada.</p>
+            {/* Col 2: Boxes desse mês (agrupado por data) + Wishlist */}
+            <div className="space-y-6">
+              <section>
+                <div className="mb-3">
+                  <h2 className="text-sm font-semibold tracking-tight">Boxes desse mês</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {compras.length} item(ns) · {brl(gastoTotal)}
+                  </p>
                 </div>
-              )}
-              {vendas.map((v) => (
-                <VendaItem
-                  key={v.id}
-                  venda={v}
-                  onUpdate={(updated) => updateVenda.mutate(updated)}
-                  onDelete={() => deleteVenda.mutate(v.id)}
-                />
-              ))}
+                <div className="space-y-2 xl:max-h-[calc(100vh-440px)] xl:overflow-y-auto xl:pr-1">
+                  {comprasAgrupadas.length === 0 && (
+                    <div className="flex items-center justify-center rounded-xl border bg-card/50 p-8">
+                      <p className="text-sm text-muted-foreground">Garagem vazia esse mês.</p>
+                    </div>
+                  )}
+                  {comprasAgrupadas.map(([data, items]) => {
+                    const totalGrupo = items.reduce((a, c) => a + c.valor, 0);
+                    return (
+                      <div key={data} className="rounded-xl border bg-card">
+                        <div className="flex items-baseline justify-between border-b px-3 py-2">
+                          <span className="text-[10px] text-muted-foreground">
+                            {data.split("-").reverse().join("/")}
+                          </span>
+                          <span className="num text-[10px] font-medium">
+                            {items.length} item(ns) · {brl(totalGrupo)}
+                          </span>
+                        </div>
+                        <ul className="divide-y">
+                          {items.map((c) => (
+                            <li key={c.id} className="flex items-center gap-2 px-3 py-2">
+                              <span
+                                className="size-2 rounded-full"
+                                style={{ backgroundColor: CAT_COLORS[c.categoria] }}
+                              />
+                              <span className="min-w-0 flex-1 truncate text-xs">{c.descricao}</span>
+                              <span className="num text-xs font-medium">{brl(c.valor)}</span>
+                              <button
+                                aria-label="Remover"
+                                className="text-muted-foreground hover:text-destructive"
+                                onClick={() => deleteCompra.mutate(c.id)}
+                              >
+                                <Trash2 className="size-3" />
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3">
+                  <CompraForm onAdd={(c) => addCompra.mutate(c)} isPending={addCompra.isPending} />
+                </div>
+              </section>
+
+              {/* Wishlist */}
+              <section>
+                <div className="mb-3">
+                  <h2 className="text-sm font-semibold tracking-tight">Wishlist</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {sortedWishlist.length} na fila · favorito primeiro
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {sortedWishlist.length === 0 && (
+                    <p className="rounded-xl border bg-card p-4 text-sm text-muted-foreground">
+                      Wishlist vazia — bora preencher!
+                    </p>
+                  )}
+                  {sortedWishlist.map((item, idx) => {
+                    const prioColor =
+                      PRIORIDADES.find((p) => p.value === item.prioridade)?.color ?? "";
+                    const prioLabel =
+                      PRIORIDADES.find((p) => p.value === item.prioridade)?.label ?? "";
+                    return (
+                      <div
+                        key={item.id}
+                        className="flex items-center gap-3 rounded-xl border bg-card p-3"
+                      >
+                        <span className="num text-xs font-medium text-muted-foreground">
+                          P{idx + 1}
+                        </span>
+                        <div className="min-w-0 flex-1">
+                          <p className="truncate text-sm font-medium">{item.nome}</p>
+                          <span
+                            className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${prioColor}`}
+                          >
+                            {prioLabel}
+                          </span>
+                        </div>
+                        <span className="num text-sm text-muted-foreground">
+                          {item.precoMedio ? `~${brl(item.precoMedio)}` : "a definir"}
+                        </span>
+                        <button
+                          aria-label="Comprado"
+                          className="text-muted-foreground hover:text-positive"
+                          onClick={() => updateWishlist.mutate({ ...item, status: "comprado" })}
+                        >
+                          <Check className="size-4" />
+                        </button>
+                        <button
+                          aria-label="Remover"
+                          className="text-muted-foreground hover:text-destructive"
+                          onClick={() => deleteWishlist.mutate(item.id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </button>
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="mt-3">
+                  <WishlistForm
+                    onAdd={(item) => addWishlist.mutate(item)}
+                    isPending={addWishlist.isPending}
+                  />
+                </div>
+              </section>
             </div>
-            <div className="mt-3">
-              <VendaForm onAdd={(v) => addVenda.mutate(v)} isPending={addVenda.isPending} />
+
+            {/* Col 3: Estoque + Vendas */}
+            <div className="space-y-6 md:col-span-2 xl:col-span-1">
+              {/* Estoque */}
+              <section>
+                <div className="mb-3">
+                  <h2 className="text-sm font-semibold tracking-tight">Estoque de acessórios</h2>
+                  <p className="text-xs text-muted-foreground">sleeves, top loaders</p>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  {estoque.map((item) => {
+                    const isLow = item.quantidade <= item.quantidadeMinima;
+                    return (
+                      <div
+                        key={item.id}
+                        className={`rounded-xl border p-4 ${isLow ? "border-red-500/40 bg-red-500/5" : "bg-card"}`}
+                      >
+                        <p className="text-[10px] font-semibold uppercase tracking-widest text-muted-foreground">
+                          {item.tipo.replace(/_/g, " ")}
+                        </p>
+                        <div className="mt-1 flex items-center gap-2">
+                          <button
+                            className="rounded border px-1.5 py-0.5 text-xs hover:bg-accent"
+                            onClick={() =>
+                              upsertEstoque.mutate({
+                                ...item,
+                                quantidade: Math.max(0, item.quantidade - 1),
+                              })
+                            }
+                          >
+                            −
+                          </button>
+                          <span
+                            className={`num text-2xl font-bold ${isLow ? "text-red-400" : "text-foreground"}`}
+                          >
+                            {item.quantidade}
+                          </span>
+                          <button
+                            className="rounded border px-1.5 py-0.5 text-xs hover:bg-accent"
+                            onClick={() =>
+                              upsertEstoque.mutate({ ...item, quantidade: item.quantidade + 1 })
+                            }
+                          >
+                            +
+                          </button>
+                        </div>
+                        {isLow && (
+                          <p className="mt-1 text-[10px] font-medium text-red-400">estoque baixo</p>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+                {estoque.length === 0 && (
+                  <p className="mt-2 text-sm text-muted-foreground">Nenhum acessório cadastrado.</p>
+                )}
+                <div className="mt-3">
+                  <EstoqueForm onAdd={(e) => addEstoque.mutate(e)} />
+                </div>
+              </section>
+
+              {/* Vendendo */}
+              <section>
+                <div className="mb-3">
+                  <h2 className="text-sm font-semibold tracking-tight">Vendendo</h2>
+                  <p className="text-xs text-muted-foreground">
+                    {vendas.length} iten(s) · {brl(totalPendente)} a receber
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  {vendas.length === 0 && (
+                    <div className="flex items-center justify-center rounded-xl border bg-card/50 p-6">
+                      <p className="text-sm text-muted-foreground">Nenhuma venda registrada.</p>
+                    </div>
+                  )}
+                  {vendas.map((v) => (
+                    <VendaItem
+                      key={v.id}
+                      venda={v}
+                      onUpdate={(updated) => updateVenda.mutate(updated)}
+                      onDelete={() => deleteVenda.mutate(v.id)}
+                    />
+                  ))}
+                </div>
+                <div className="mt-3">
+                  <VendaForm onAdd={(v) => addVenda.mutate(v)} isPending={addVenda.isPending} />
+                </div>
+              </section>
             </div>
-          </section>
-        </div>
-      </div>
+          </div>
+        </>
+      )}
     </div>
   );
 }
 
 // ── Sub-components ──
 
-function BudgetEditor({ mes, limite, onSave }: { mes: string; limite: number; onSave: (v: number) => void }) {
+function BindersView({
+  binders,
+  colecao,
+  onAddCard,
+  onDeleteCard,
+  addPending,
+}: {
+  binders: HobbyBinder[];
+  colecao: HobbyCard[];
+  onAddCard: (c: Omit<HobbyCard, "id">) => void;
+  onDeleteCard: (id: string) => void;
+  addPending: boolean;
+}) {
+  const [selecionado, setSelecionado] = useState<string>(binders[0]?.nome ?? "");
+
+  // Agrupa a coleção por binder
+  const porBinder = useMemo(() => {
+    const m = new Map<string, HobbyCard[]>();
+    for (const c of colecao) {
+      const b = c.binder || "Outros";
+      if (!m.has(b)) m.set(b, []);
+      m.get(b)!.push(c);
+    }
+    return m;
+  }, [colecao]);
+
+  const binderAtual = binders.find((b) => b.nome === selecionado) ?? binders[0];
+  const cardsDoBinder = binderAtual ? (porBinder.get(binderAtual.nome) ?? []) : [];
+
+  // Expande por quantidade e completa com slots vazios até o total de slots do binder
+  const cardsExpandidos = cardsDoBinder.flatMap((c) =>
+    Array.from({ length: Math.max(1, c.quantidade) }, () => c),
+  );
+  const slots = binderAtual?.slots ?? 9;
+  const totalSlots = Math.max(slots, Math.ceil(cardsExpandidos.length / 9) * 9 || slots);
+  const vazios = Math.max(0, totalSlots - cardsExpandidos.length);
+
+  const valorBinder = cardsDoBinder.reduce((a, c) => a + (c.valorEstimado ?? 0) * c.quantidade, 0);
+
+  if (binders.length === 0) {
+    return (
+      <div className="rounded-xl border bg-card/50 p-8 text-center text-sm text-muted-foreground">
+        Nenhum binder configurado ainda.
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-5">
+      {/* Seletor de binders */}
+      <div className="flex flex-wrap gap-2">
+        {binders.map((b) => {
+          const qtd = (porBinder.get(b.nome) ?? []).reduce((a, c) => a + c.quantidade, 0);
+          const ativo = b.nome === selecionado;
+          return (
+            <button
+              key={b.id}
+              onClick={() => setSelecionado(b.nome)}
+              className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                ativo
+                  ? "border-transparent text-white"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+              style={ativo ? { backgroundColor: b.cor } : undefined}
+            >
+              <span
+                className="size-2 rounded-full"
+                style={{ backgroundColor: ativo ? "rgba(255,255,255,0.9)" : b.cor }}
+              />
+              {b.nome.replace(/^Cards /, "")}
+              <span
+                className={`num rounded-full px-1.5 text-[10px] ${ativo ? "bg-white/20" : "bg-muted"}`}
+              >
+                {qtd}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
+      {binderAtual && (
+        <>
+          {/* Cabeçalho do binder */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border bg-card p-4">
+            <div className="flex items-center gap-3">
+              <span className="size-4 rounded" style={{ backgroundColor: binderAtual.cor }} />
+              <div>
+                <p className="text-sm font-semibold">{binderAtual.nome}</p>
+                <p className="num text-xs text-muted-foreground">
+                  {cardsExpandidos.length} card(s) · valor estimado {brl(valorBinder)}
+                </p>
+              </div>
+            </div>
+            <CardForm
+              onAdd={onAddCard}
+              isPending={addPending}
+              binders={binders}
+              binderPadrao={binderAtual.nome}
+            />
+          </div>
+
+          {/* Binder virtual — páginas 3x3 */}
+          <div
+            className="grid grid-cols-3 gap-2 rounded-2xl border-2 p-3 sm:gap-3 sm:p-4 md:grid-cols-3 lg:grid-cols-3"
+            style={{ borderColor: `${binderAtual.cor}55`, backgroundColor: `${binderAtual.cor}0d` }}
+          >
+            {cardsExpandidos.map((card, idx) => (
+              <div
+                key={`${card.id}-${idx}`}
+                className="group relative flex aspect-[2.5/3.5] flex-col justify-between overflow-hidden rounded-lg border bg-card p-2 shadow-sm transition-transform hover:-translate-y-0.5 hover:shadow-md"
+                style={{ borderColor: `${binderAtual.cor}66` }}
+              >
+                <div className="flex items-start justify-between gap-1">
+                  <span
+                    className={`rounded-full border px-1.5 py-0 text-[8px] font-medium ${TIPO_COLORS[card.tipo]}`}
+                  >
+                    {card.tipo}
+                    {card.numeracao ? ` ${card.numeracao}` : ""}
+                  </span>
+                  {idx === 0 || cardsExpandidos[idx - 1]?.id !== card.id ? (
+                    <button
+                      aria-label="Remover card"
+                      className="text-muted-foreground opacity-0 transition-opacity hover:text-destructive group-hover:opacity-100"
+                      onClick={() => onDeleteCard(card.id)}
+                    >
+                      <Trash2 className="size-3" />
+                    </button>
+                  ) : null}
+                </div>
+                <div>
+                  <p className="line-clamp-2 text-[11px] font-semibold leading-tight">
+                    {card.nome}
+                  </p>
+                  <p className="truncate text-[9px] text-muted-foreground">{card.piloto}</p>
+                  {card.valorEstimado != null && (
+                    <p className="num mt-0.5 text-[10px] font-medium">{brl(card.valorEstimado)}</p>
+                  )}
+                </div>
+              </div>
+            ))}
+            {/* Slots vazios */}
+            {Array.from({ length: vazios }).map((_, i) => (
+              <div
+                key={`vazio-${i}`}
+                className="flex aspect-[2.5/3.5] items-center justify-center rounded-lg border border-dashed text-muted-foreground/40"
+                style={{ borderColor: `${binderAtual.cor}40` }}
+              >
+                <Plus className="size-4" />
+              </div>
+            ))}
+          </div>
+
+          {cardsExpandidos.length === 0 && (
+            <p className="text-center text-xs text-muted-foreground">
+              Binder vazio — adicione seus primeiros cards de{" "}
+              {binderAtual.nome.replace(/^Cards /, "")}.
+            </p>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
+function BudgetEditor({
+  mes,
+  limite,
+  onSave,
+}: {
+  mes: string;
+  limite: number;
+  onSave: (v: number) => void;
+}) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState("");
 
   if (!editing) {
     return (
       <span className="rounded-md border border-primary/30 bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">
-        <button onClick={() => { setEditing(true); setVal(String(limite)); }}>
+        <button
+          onClick={() => {
+            setEditing(true);
+            setVal(String(limite));
+          }}
+        >
           P1
         </button>
       </span>
@@ -621,8 +927,20 @@ function BudgetEditor({ mes, limite, onSave }: { mes: string; limite: number; on
 
   return (
     <div className="flex items-center gap-2">
-      <Input inputMode="decimal" value={val} onChange={(e) => setVal(e.target.value)} className="h-7 w-24 text-xs" placeholder="Limite" />
-      <button className="text-positive" onClick={() => { onSave(parseValor(val)); setEditing(false); }}>
+      <Input
+        inputMode="decimal"
+        value={val}
+        onChange={(e) => setVal(e.target.value)}
+        className="h-7 w-24 text-xs"
+        placeholder="Limite"
+      />
+      <button
+        className="text-positive"
+        onClick={() => {
+          onSave(parseValor(val));
+          setEditing(false);
+        }}
+      >
         <Check className="size-4" />
       </button>
       <button className="text-muted-foreground" onClick={() => setEditing(false)}>
@@ -632,11 +950,22 @@ function BudgetEditor({ mes, limite, onSave }: { mes: string; limite: number; on
   );
 }
 
-function CardForm({ onAdd, isPending }: { onAdd: (c: Omit<HobbyCard, "id">) => void; isPending: boolean }) {
+function CardForm({
+  onAdd,
+  isPending,
+  binders,
+  binderPadrao,
+}: {
+  onAdd: (c: Omit<HobbyCard, "id">) => void;
+  isPending: boolean;
+  binders: HobbyBinder[];
+  binderPadrao?: string;
+}) {
   const [open, setOpen] = useState(false);
   const [piloto, setPiloto] = useState("");
   const [nome, setNome] = useState("");
   const [setColecao, setSetColecao] = useState("Topps NOW");
+  const [binder, setBinder] = useState(binderPadrao ?? binders[0]?.nome ?? "Outros");
   const [tipo, setTipo] = useState<CardTipo>("base");
   const [numeracao, setNumeracao] = useState("");
   const [valorPago, setValorPago] = useState("");
@@ -644,7 +973,12 @@ function CardForm({ onAdd, isPending }: { onAdd: (c: Omit<HobbyCard, "id">) => v
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" className="border-dashed text-xs" onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="border-dashed text-xs"
+        onClick={() => setOpen(true)}
+      >
         <Plus className="mr-1 size-3" /> card
       </Button>
     );
@@ -657,6 +991,7 @@ function CardForm({ onAdd, isPending }: { onAdd: (c: Omit<HobbyCard, "id">) => v
       piloto: piloto.trim(),
       nome: nome.trim(),
       setColecao: setColecao.trim() || "Topps",
+      binder: binder || "Outros",
       tipo,
       numeracao: numeracao.trim() || undefined,
       valorPago: valorPago ? parseValor(valorPago) : undefined,
@@ -675,12 +1010,53 @@ function CardForm({ onAdd, isPending }: { onAdd: (c: Omit<HobbyCard, "id">) => v
   return (
     <form onSubmit={submit} className="space-y-2 rounded-xl border bg-muted/30 p-3">
       <div className="grid grid-cols-2 gap-2">
-        <Input value={piloto} onChange={(e) => setPiloto(e.target.value)} placeholder="Piloto" className="h-8 text-xs" />
-        <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do card" className="h-8 text-xs" />
+        <Input
+          value={piloto}
+          onChange={(e) => setPiloto(e.target.value)}
+          placeholder="Piloto"
+          className="h-8 text-xs"
+        />
+        <Input
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Nome do card"
+          className="h-8 text-xs"
+        />
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Input value={setColecao} onChange={(e) => setSetColecao(e.target.value)} placeholder="Set (Topps NOW)" className="h-8 text-xs" />
-        <Input value={numeracao} onChange={(e) => setNumeracao(e.target.value)} placeholder="Numeração /99" className="h-8 text-xs" />
+        <Input
+          value={setColecao}
+          onChange={(e) => setSetColecao(e.target.value)}
+          placeholder="Set (Topps NOW)"
+          className="h-8 text-xs"
+        />
+        <Input
+          value={numeracao}
+          onChange={(e) => setNumeracao(e.target.value)}
+          placeholder="Numeração /99"
+          className="h-8 text-xs"
+        />
+      </div>
+      {/* Seleção de binder */}
+      <div className="space-y-1">
+        <Label className="text-[10px] uppercase tracking-wider text-muted-foreground">Binder</Label>
+        <div className="flex flex-wrap gap-1">
+          {binders.map((b) => (
+            <button
+              key={b.id}
+              type="button"
+              onClick={() => setBinder(b.nome)}
+              className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
+                binder === b.nome
+                  ? "border-primary bg-primary/10 text-foreground"
+                  : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              <span className="size-1.5 rounded-full" style={{ backgroundColor: b.cor }} />
+              {b.nome.replace(/^Cards /, "")}
+            </button>
+          ))}
+        </div>
       </div>
       <div className="flex flex-wrap gap-1">
         {CARD_TIPOS.map((t) => (
@@ -689,7 +1065,9 @@ function CardForm({ onAdd, isPending }: { onAdd: (c: Omit<HobbyCard, "id">) => v
             type="button"
             onClick={() => setTipo(t.value)}
             className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
-              tipo === t.value ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+              tipo === t.value
+                ? "border-primary bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
             {t.label}
@@ -697,12 +1075,28 @@ function CardForm({ onAdd, isPending }: { onAdd: (c: Omit<HobbyCard, "id">) => v
         ))}
       </div>
       <div className="grid grid-cols-2 gap-2">
-        <Input inputMode="decimal" value={valorPago} onChange={(e) => setValorPago(e.target.value)} placeholder="Pago (R$)" className="h-8 text-xs" />
-        <Input inputMode="decimal" value={valorEstimado} onChange={(e) => setValorEstimado(e.target.value)} placeholder="Vale hoje (R$)" className="h-8 text-xs" />
+        <Input
+          inputMode="decimal"
+          value={valorPago}
+          onChange={(e) => setValorPago(e.target.value)}
+          placeholder="Pago (R$)"
+          className="h-8 text-xs"
+        />
+        <Input
+          inputMode="decimal"
+          value={valorEstimado}
+          onChange={(e) => setValorEstimado(e.target.value)}
+          placeholder="Vale hoje (R$)"
+          className="h-8 text-xs"
+        />
       </div>
       <div className="flex gap-2">
-        <Button size="sm" type="submit" disabled={isPending}>Salvar</Button>
-        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>Cancelar</Button>
+        <Button size="sm" type="submit" disabled={isPending}>
+          Salvar
+        </Button>
+        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>
+          Cancelar
+        </Button>
       </div>
     </form>
   );
@@ -715,7 +1109,12 @@ function MetaForm({ onAdd }: { onAdd: (m: Omit<HobbyMeta, "id">) => void }) {
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" className="border-dashed text-xs" onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="border-dashed text-xs"
+        onClick={() => setOpen(true)}
+      >
         <Plus className="mr-1 size-3" /> meta
       </Button>
     );
@@ -732,9 +1131,21 @@ function MetaForm({ onAdd }: { onAdd: (m: Omit<HobbyMeta, "id">) => void }) {
 
   return (
     <form onSubmit={submit} className="flex items-center gap-2">
-      <Input value={titulo} onChange={(e) => setTitulo(e.target.value)} placeholder="Meta..." className="h-7 text-xs" />
-      <Input type="number" value={total} onChange={(e) => setTotal(e.target.value)} className="h-7 w-14 text-xs" />
-      <Button size="sm" type="submit" className="h-7 text-xs">Ok</Button>
+      <Input
+        value={titulo}
+        onChange={(e) => setTitulo(e.target.value)}
+        placeholder="Meta..."
+        className="h-7 text-xs"
+      />
+      <Input
+        type="number"
+        value={total}
+        onChange={(e) => setTotal(e.target.value)}
+        className="h-7 w-14 text-xs"
+      />
+      <Button size="sm" type="submit" className="h-7 text-xs">
+        Ok
+      </Button>
       <button type="button" className="text-muted-foreground" onClick={() => setOpen(false)}>
         <X className="size-4" />
       </button>
@@ -742,7 +1153,13 @@ function MetaForm({ onAdd }: { onAdd: (m: Omit<HobbyMeta, "id">) => void }) {
   );
 }
 
-function CompraForm({ onAdd, isPending }: { onAdd: (c: any) => void; isPending: boolean }) {
+function CompraForm({
+  onAdd,
+  isPending,
+}: {
+  onAdd: (c: Omit<HobbyCompra, "id">) => void;
+  isPending: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [desc, setDesc] = useState("");
   const [valor, setValor] = useState("");
@@ -752,7 +1169,11 @@ function CompraForm({ onAdd, isPending }: { onAdd: (c: any) => void; isPending: 
 
   if (!open) {
     return (
-      <Button variant="outline" className="w-full border-dashed text-sm font-medium" onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        className="w-full border-dashed text-sm font-medium"
+        onClick={() => setOpen(true)}
+      >
         <Plus className="mr-1.5 size-4" /> nova compra
       </Button>
     );
@@ -773,11 +1194,20 @@ function CompraForm({ onAdd, isPending }: { onAdd: (c: any) => void; isPending: 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-xs">Descrição</Label>
-          <Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Norris Topps..." />
+          <Input
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Norris Topps..."
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Valor</Label>
-          <Input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" />
+          <Input
+            inputMode="decimal"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            placeholder="0,00"
+          />
         </div>
       </div>
       <div className="grid grid-cols-2 gap-2">
@@ -790,7 +1220,9 @@ function CompraForm({ onAdd, isPending }: { onAdd: (c: any) => void; isPending: 
                 type="button"
                 onClick={() => setCategoria(c.value)}
                 className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
-                  categoria === c.value ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  categoria === c.value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {c.label}
@@ -807,7 +1239,9 @@ function CompraForm({ onAdd, isPending }: { onAdd: (c: any) => void; isPending: 
                 type="button"
                 onClick={() => setTipo(t)}
                 className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
-                  tipo === t ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  tipo === t
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {t}
@@ -816,18 +1250,31 @@ function CompraForm({ onAdd, isPending }: { onAdd: (c: any) => void; isPending: 
           </div>
         </div>
       </div>
-      <Input type="date" value={data} onChange={(e) => setData(e.target.value)} className="h-8 text-xs" />
+      <Input
+        type="date"
+        value={data}
+        onChange={(e) => setData(e.target.value)}
+        className="h-8 text-xs"
+      />
       <div className="flex gap-2">
         <Button size="sm" type="submit" disabled={isPending}>
           <ShoppingBag className="mr-1 size-3" /> Adicionar
         </Button>
-        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>Cancelar</Button>
+        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>
+          Cancelar
+        </Button>
       </div>
     </form>
   );
 }
 
-function WishlistForm({ onAdd, isPending }: { onAdd: (item: any) => void; isPending: boolean }) {
+function WishlistForm({
+  onAdd,
+  isPending,
+}: {
+  onAdd: (item: Omit<HobbyWishlistItem, "id">) => void;
+  isPending: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [nome, setNome] = useState("");
   const [prioridade, setPrioridade] = useState<WishlistPrioridade>("visual");
@@ -835,7 +1282,12 @@ function WishlistForm({ onAdd, isPending }: { onAdd: (item: any) => void; isPend
 
   if (!open) {
     return (
-      <Button variant="outline" size="sm" className="w-full border-dashed text-sm font-medium" onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full border-dashed text-sm font-medium"
+        onClick={() => setOpen(true)}
+      >
         <Star className="mr-1.5 size-4" /> adicionar item
       </Button>
     );
@@ -844,7 +1296,12 @@ function WishlistForm({ onAdd, isPending }: { onAdd: (item: any) => void; isPend
   function submit(e: React.FormEvent) {
     e.preventDefault();
     if (!nome.trim()) return;
-    onAdd({ nome: nome.trim(), prioridade, precoMedio: preco ? parseValor(preco) : undefined, status: "quero" as const });
+    onAdd({
+      nome: nome.trim(),
+      prioridade,
+      precoMedio: preco ? parseValor(preco) : undefined,
+      status: "quero" as const,
+    });
     setNome("");
     setPreco("");
     setOpen(false);
@@ -854,7 +1311,11 @@ function WishlistForm({ onAdd, isPending }: { onAdd: (item: any) => void; isPend
     <form onSubmit={submit} className="space-y-3 rounded-xl border bg-muted/30 p-3">
       <div className="space-y-1">
         <Label className="text-xs">Nome do item</Label>
-        <Input value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Norris Topps NOW numbered" />
+        <Input
+          value={nome}
+          onChange={(e) => setNome(e.target.value)}
+          placeholder="Norris Topps NOW numbered"
+        />
       </div>
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
@@ -866,7 +1327,9 @@ function WishlistForm({ onAdd, isPending }: { onAdd: (item: any) => void; isPend
                 type="button"
                 onClick={() => setPrioridade(p.value)}
                 className={`rounded-full border px-2 py-0.5 text-[10px] transition-colors ${
-                  prioridade === p.value ? "border-primary bg-primary text-primary-foreground" : "text-muted-foreground hover:text-foreground"
+                  prioridade === p.value
+                    ? "border-primary bg-primary text-primary-foreground"
+                    : "text-muted-foreground hover:text-foreground"
                 }`}
               >
                 {p.label}
@@ -876,18 +1339,33 @@ function WishlistForm({ onAdd, isPending }: { onAdd: (item: any) => void; isPend
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Preço médio (opcional)</Label>
-          <Input inputMode="decimal" value={preco} onChange={(e) => setPreco(e.target.value)} placeholder="0,00" />
+          <Input
+            inputMode="decimal"
+            value={preco}
+            onChange={(e) => setPreco(e.target.value)}
+            placeholder="0,00"
+          />
         </div>
       </div>
       <div className="flex gap-2">
-        <Button size="sm" type="submit" disabled={isPending}>Adicionar</Button>
-        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>Cancelar</Button>
+        <Button size="sm" type="submit" disabled={isPending}>
+          Adicionar
+        </Button>
+        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>
+          Cancelar
+        </Button>
       </div>
     </form>
   );
 }
 
-function VendaForm({ onAdd, isPending }: { onAdd: (v: any) => void; isPending: boolean }) {
+function VendaForm({
+  onAdd,
+  isPending,
+}: {
+  onAdd: (v: Omit<HobbyVenda, "id">) => void;
+  isPending: boolean;
+}) {
   const [open, setOpen] = useState(false);
   const [desc, setDesc] = useState("");
   const [valor, setValor] = useState("");
@@ -895,7 +1373,11 @@ function VendaForm({ onAdd, isPending }: { onAdd: (v: any) => void; isPending: b
 
   if (!open) {
     return (
-      <Button variant="outline" className="w-full border-dashed text-sm font-medium" onClick={() => setOpen(true)}>
+      <Button
+        variant="outline"
+        className="w-full border-dashed text-sm font-medium"
+        onClick={() => setOpen(true)}
+      >
         <Tag className="mr-1.5 size-4" /> nova venda
       </Button>
     );
@@ -905,7 +1387,13 @@ function VendaForm({ onAdd, isPending }: { onAdd: (v: any) => void; isPending: b
     e.preventDefault();
     const v = parseValor(valor);
     if (!desc.trim() || !v) return;
-    onAdd({ descricao: desc.trim(), valorPedido: v, status: "anunciado" as VendaStatus, canal: canal.trim() || undefined, data: hoje() });
+    onAdd({
+      descricao: desc.trim(),
+      valorPedido: v,
+      status: "anunciado" as VendaStatus,
+      canal: canal.trim() || undefined,
+      data: hoje(),
+    });
     setDesc("");
     setValor("");
     setCanal("");
@@ -917,40 +1405,75 @@ function VendaForm({ onAdd, isPending }: { onAdd: (v: any) => void; isPending: b
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-xs">Descrição</Label>
-          <Input value={desc} onChange={(e) => setDesc(e.target.value)} placeholder="Card Argentina Panini" />
+          <Input
+            value={desc}
+            onChange={(e) => setDesc(e.target.value)}
+            placeholder="Card Argentina Panini"
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-xs">Valor pedido</Label>
-          <Input inputMode="decimal" value={valor} onChange={(e) => setValor(e.target.value)} placeholder="0,00" />
+          <Input
+            inputMode="decimal"
+            value={valor}
+            onChange={(e) => setValor(e.target.value)}
+            placeholder="0,00"
+          />
         </div>
       </div>
       <div className="space-y-1">
         <Label className="text-xs">Canal (opcional)</Label>
-        <Input value={canal} onChange={(e) => setCanal(e.target.value)} placeholder="whatsapp, marketplace..." />
+        <Input
+          value={canal}
+          onChange={(e) => setCanal(e.target.value)}
+          placeholder="whatsapp, marketplace..."
+        />
       </div>
       <div className="flex gap-2">
-        <Button size="sm" type="submit" disabled={isPending}>Anunciar</Button>
-        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>Cancelar</Button>
+        <Button size="sm" type="submit" disabled={isPending}>
+          Anunciar
+        </Button>
+        <Button size="sm" variant="ghost" type="button" onClick={() => setOpen(false)}>
+          Cancelar
+        </Button>
       </div>
     </form>
   );
 }
 
-function VendaItem({ venda, onUpdate, onDelete }: { venda: HobbyVenda; onUpdate: (v: HobbyVenda) => void; onDelete: () => void }) {
-  const statusLabels: Record<VendaStatus, string> = { anunciado: "anunciado", negociando: "em preparo", vendido: "vendido" };
+function VendaItem({
+  venda,
+  onUpdate,
+  onDelete,
+}: {
+  venda: HobbyVenda;
+  onUpdate: (v: HobbyVenda) => void;
+  onDelete: () => void;
+}) {
+  const statusLabels: Record<VendaStatus, string> = {
+    anunciado: "anunciado",
+    negociando: "em preparo",
+    vendido: "vendido",
+  };
   const statusColors: Record<VendaStatus, string> = {
     anunciado: "border-blue-500/30 bg-blue-500/20 text-blue-400",
     negociando: "border-yellow-500/30 bg-yellow-500/20 text-yellow-400",
     vendido: "border-green-500/30 bg-green-500/20 text-green-400",
   };
-  const nextStatus: Record<VendaStatus, VendaStatus | null> = { anunciado: "negociando", negociando: "vendido", vendido: null };
+  const nextStatus: Record<VendaStatus, VendaStatus | null> = {
+    anunciado: "negociando",
+    negociando: "vendido",
+    vendido: null,
+  };
   const next = nextStatus[venda.status];
 
   return (
     <div className="flex items-center gap-3 rounded-xl border bg-card p-3">
       <div className="min-w-0 flex-1">
         <p className="truncate text-sm font-medium">{venda.descricao}</p>
-        <span className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusColors[venda.status]}`}>
+        <span
+          className={`mt-0.5 inline-block rounded-full border px-2 py-0.5 text-[10px] font-medium ${statusColors[venda.status]}`}
+        >
           {statusLabels[venda.status]}
         </span>
       </div>
@@ -958,11 +1481,19 @@ function VendaItem({ venda, onUpdate, onDelete }: { venda: HobbyVenda; onUpdate:
         {venda.status === "negociando" ? "separando" : brl(venda.valorPedido)}
       </span>
       {next && (
-        <button aria-label="Avançar status" className="text-muted-foreground hover:text-foreground" onClick={() => onUpdate({ ...venda, status: next })}>
+        <button
+          aria-label="Avançar status"
+          className="text-muted-foreground hover:text-foreground"
+          onClick={() => onUpdate({ ...venda, status: next })}
+        >
           <Check className="size-4" />
         </button>
       )}
-      <button aria-label="Remover" className="text-muted-foreground hover:text-destructive" onClick={onDelete}>
+      <button
+        aria-label="Remover"
+        className="text-muted-foreground hover:text-destructive"
+        onClick={onDelete}
+      >
         <Trash2 className="size-4" />
       </button>
     </div>
@@ -977,7 +1508,12 @@ function EstoqueForm({ onAdd }: { onAdd: (e: Omit<HobbyEstoque, "id">) => void }
 
   if (!adding) {
     return (
-      <Button variant="outline" size="sm" className="w-full border-dashed text-sm font-medium" onClick={() => setAdding(true)}>
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full border-dashed text-sm font-medium"
+        onClick={() => setAdding(true)}
+      >
         <Plus className="mr-1.5 size-4" /> novo acessório
       </Button>
     );
@@ -994,20 +1530,39 @@ function EstoqueForm({ onAdd }: { onAdd: (e: Omit<HobbyEstoque, "id">) => void }
 
   return (
     <form onSubmit={submit} className="space-y-2 rounded-xl border bg-muted/30 p-3">
-      <Input value={tipo} onChange={(e) => setTipo(e.target.value)} placeholder="sleeves, top_loaders..." className="h-8 text-xs" />
+      <Input
+        value={tipo}
+        onChange={(e) => setTipo(e.target.value)}
+        placeholder="sleeves, top_loaders..."
+        className="h-8 text-xs"
+      />
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
           <Label className="text-[10px]">Quantidade</Label>
-          <Input type="number" value={qtd} onChange={(e) => setQtd(e.target.value)} className="h-7 text-xs" />
+          <Input
+            type="number"
+            value={qtd}
+            onChange={(e) => setQtd(e.target.value)}
+            className="h-7 text-xs"
+          />
         </div>
         <div className="space-y-1">
           <Label className="text-[10px]">Mínimo alerta</Label>
-          <Input type="number" value={min} onChange={(e) => setMin(e.target.value)} className="h-7 text-xs" />
+          <Input
+            type="number"
+            value={min}
+            onChange={(e) => setMin(e.target.value)}
+            className="h-7 text-xs"
+          />
         </div>
       </div>
       <div className="flex gap-2">
-        <Button size="sm" type="submit">Salvar</Button>
-        <Button size="sm" variant="ghost" type="button" onClick={() => setAdding(false)}>Cancelar</Button>
+        <Button size="sm" type="submit">
+          Salvar
+        </Button>
+        <Button size="sm" variant="ghost" type="button" onClick={() => setAdding(false)}>
+          Cancelar
+        </Button>
       </div>
     </form>
   );

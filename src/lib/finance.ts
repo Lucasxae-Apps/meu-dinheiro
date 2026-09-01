@@ -1,6 +1,12 @@
 import { useCallback, useEffect, useState } from "react";
 
-export type Entrada = { id: string; nome: string; valor: number; oficial: boolean; nota?: string | undefined };
+export type Entrada = {
+  id: string;
+  nome: string;
+  valor: number;
+  oficial: boolean;
+  nota?: string | undefined;
+};
 export type Investimento = {
   id: string;
   nome: string;
@@ -20,6 +26,17 @@ export type ContaFixa = {
 };
 export type MeioPagamento = "credito" | "debito" | "pix" | "dinheiro";
 
+export type Cartao = {
+  id: string;
+  nome: string;
+  bandeira?: string | undefined;
+  cor: string;
+  limite?: number | undefined;
+  diaFechamento?: number | undefined;
+  diaVencimento?: number | undefined;
+  ativo: boolean;
+};
+
 export type Lancamento = {
   id: string;
   data: string; // yyyy-mm-dd
@@ -28,6 +45,7 @@ export type Lancamento = {
   nota?: string | undefined;
   meioPagamento: MeioPagamento;
   mesReferenciaFatura?: string | undefined; // yyyy-mm — preenchido apenas para cartão de crédito
+  cartaoId?: string | undefined; // preenchido apenas para cartão de crédito
 };
 export type DespesaIrregular = {
   id: string;
@@ -60,7 +78,13 @@ export const seed: FinanceState = {
       oficial: true,
       nota: "Imóvel é metade meu, metade do meu irmão",
     },
-    { id: "dividendos", nome: "Dividendos", valor: 50, oficial: true, nota: "Reinvestidos automaticamente" },
+    {
+      id: "dividendos",
+      nome: "Dividendos",
+      valor: 50,
+      oficial: true,
+      nota: "Reinvestidos automaticamente",
+    },
     {
       id: "mesada",
       nome: "Mesada",
@@ -70,8 +94,21 @@ export const seed: FinanceState = {
     },
   ],
   investimentos: [
-    { id: "reserva", nome: "Reserva de emergência", aporteMensal: 900, acumulado: 6000, nota: "Inter — sem alvo definido" },
-    { id: "italia", nome: "Meta Itália", aporteMensal: 1000, acumulado: 3000, alvo: 20000, nota: "Nubank — prazo e alvo a definir" },
+    {
+      id: "reserva",
+      nome: "Reserva de emergência",
+      aporteMensal: 900,
+      acumulado: 6000,
+      nota: "Inter — sem alvo definido",
+    },
+    {
+      id: "italia",
+      nome: "Meta Itália",
+      aporteMensal: 1000,
+      acumulado: 3000,
+      alvo: 20000,
+      nota: "Nubank — prazo e alvo a definir",
+    },
     {
       id: "rendafixa",
       nome: "Aluguel → renda fixa",
@@ -88,10 +125,18 @@ export const seed: FinanceState = {
     { id: "ingles", nome: "Inglês", valor: 360, pago: false },
     { id: "academia", nome: "Academia", valor: 137.5, pago: false },
     { id: "assinaturas", nome: "Assinaturas", valor: 160.5, pago: false },
-    { id: "gasolina", nome: "Gasolina", valor: 500, pago: false, nota: "Gasto real ~R$400, R$500 como buffer" },
+    {
+      id: "gasolina",
+      nome: "Gasolina",
+      valor: 500,
+      pago: false,
+      nota: "Gasto real ~R$400, R$500 como buffer",
+    },
   ],
   lancamentos: [],
-  irregulares: [{ id: uid(), descricao: "Revisão do carro", nota: "Sai da renda fixa quando aparecer" }],
+  irregulares: [
+    { id: uid(), descricao: "Revisão do carro", nota: "Sai da renda fixa quando aparecer" },
+  ],
   rendimentoMensal: 0.012,
   incluirAluguelNaMeta: true,
   mesReferencia: new Date().toISOString().slice(0, 7),
@@ -198,7 +243,9 @@ export function totais(state: FinanceState, mes = mesAtual()) {
   const aporteAluguel = state.investimentos
     .filter((i) => i.origemAluguel)
     .reduce((a, i) => a + i.aporteMensal, 0);
-  const acumuladoMeta = state.incluirAluguelNaMeta ? acumuladoTotal : acumuladoTotal - acumuladoAluguel;
+  const acumuladoMeta = state.incluirAluguelNaMeta
+    ? acumuladoTotal
+    : acumuladoTotal - acumuladoAluguel;
   const aporteMeta = state.incluirAluguelNaMeta ? investimentos : investimentos - aporteAluguel;
 
   return {
@@ -220,7 +267,6 @@ export function totais(state: FinanceState, mes = mesAtual()) {
     aporteMeta,
   };
 }
-
 
 /** Meses até bater a meta grande, com aportes mensais + rendimento composto. */
 export function mesesParaMeta(atual: number, aporte: number, taxa: number, alvo = META_GRANDE) {
@@ -248,6 +294,19 @@ export function parseValor(str: string): number {
   // Remove pontos de milhar e troca vírgula por ponto decimal
   const limpo = str.replace(/\./g, "").replace(",", ".");
   return Number(limpo) || 0;
+}
+
+/**
+ * Soma a fatura de cada cartão para os lançamentos de crédito informados.
+ * Retorna um mapa cartaoId -> total.
+ */
+export function faturaPorCartao(lancamentos: Lancamento[]): Map<string, number> {
+  const mapa = new Map<string, number>();
+  for (const l of lancamentos) {
+    if (l.meioPagamento !== "credito" || !l.cartaoId) continue;
+    mapa.set(l.cartaoId, (mapa.get(l.cartaoId) ?? 0) + l.valor);
+  }
+  return mapa;
 }
 
 /** Formata número para exibição em input (com vírgula decimal, sem símbolo). */

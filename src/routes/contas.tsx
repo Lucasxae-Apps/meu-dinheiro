@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Trash2, Loader2, Plus, Pencil, Check, X } from "lucide-react";
+import { Trash2, Loader2, Plus, Pencil, Check, X, CreditCard } from "lucide-react";
 import { PageHeader, Section } from "@/components/fin";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -13,6 +13,7 @@ import {
   useTogglePago,
   useUpdatePagoEm,
   useUpdateValorReal,
+  useUpdateContaCartao,
   useDespesasIrregulares,
   useAddDespesaIrregular,
   useDeleteDespesaIrregular,
@@ -20,6 +21,7 @@ import {
   useAddAssinatura,
   useUpdateAssinatura,
   useDeleteAssinatura,
+  useCartoes,
 } from "@/lib/hooks";
 import type { Assinatura } from "@/lib/hooks";
 
@@ -35,7 +37,8 @@ export const Route = createFileRoute("/contas")({
       { property: "og:title", content: "Contas fixas — Controle financeiro pessoal" },
       {
         property: "og:description",
-        content: "Marque o que já foi pago no mês e anote despesas irregulares cobertas pela renda fixa.",
+        content:
+          "Marque o que já foi pago no mês e anote despesas irregulares cobertas pela renda fixa.",
       },
     ],
   }),
@@ -47,10 +50,12 @@ function Contas() {
   const { data: contas = [], isLoading: loadingContas } = useContasFixas(mes);
   const { data: irregulares = [], isLoading: loadingIrreg } = useDespesasIrregulares();
   const { data: assinaturas = [], isLoading: loadingAss } = useAssinaturas();
+  const { data: cartoes = [] } = useCartoes();
 
   const togglePago = useTogglePago(mes);
   const updatePagoEm = useUpdatePagoEm(mes);
   const updateValorReal = useUpdateValorReal(mes);
+  const updateContaCartao = useUpdateContaCartao(mes);
   const addIrregular = useAddDespesaIrregular();
   const deleteIrregular = useDeleteDespesaIrregular();
   const addAssinatura = useAddAssinatura();
@@ -70,13 +75,17 @@ function Contas() {
 
   const totalAssinaturas = assinaturas.filter((a) => a.ativa).reduce((a, s) => a + s.valor, 0);
 
+  const cartoesAtivos = cartoes.filter((c) => c.ativo);
+
   // Sobrescreve o valor da conta "Assinaturas" com a soma real das assinaturas cadastradas
   const contasComAssinaturas = contas.map((c) =>
     c.id === "assinaturas" ? { ...c, valor: totalAssinaturas } : c,
   );
 
   const totalContas = contasComAssinaturas.reduce((a, c) => a + c.valor, 0);
-  const pago = contasComAssinaturas.filter((c) => c.pago).reduce((a, c) => a + (c.valorReal ?? c.valor), 0);
+  const pago = contasComAssinaturas
+    .filter((c) => c.pago)
+    .reduce((a, c) => a + (c.valorReal ?? c.valor), 0);
 
   function adicionarAssinatura(e: React.FormEvent) {
     e.preventDefault();
@@ -104,7 +113,10 @@ function Contas() {
 
   return (
     <div className="space-y-8">
-      <PageHeader title="Contas fixas" subtitle={`${nomeMes(mes)} · ${brl(pago)} de ${brl(totalContas)} pagos`} />
+      <PageHeader
+        title="Contas fixas"
+        subtitle={`${nomeMes(mes)} · ${brl(pago)} de ${brl(totalContas)} pagos`}
+      />
 
       <Section title="Do mês" description="Marque conforme for pagando">
         {loadingContas ? (
@@ -134,7 +146,9 @@ function Contas() {
                     {c.nota ? <p className="text-xs text-muted-foreground">{c.nota}</p> : null}
                   </div>
                   <div className="text-right">
-                    <span className={`num text-sm font-semibold ${c.pago ? "text-muted-foreground line-through" : ""}`}>
+                    <span
+                      className={`num text-sm font-semibold ${c.pago ? "text-muted-foreground line-through" : ""}`}
+                    >
                       {brl(c.valor)}
                     </span>
                     {c.valorReal != null && c.valorReal < c.valor && (
@@ -144,6 +158,49 @@ function Contas() {
                     )}
                   </div>
                 </div>
+
+                {/* Cartão que paga esta conta (informativo) */}
+                {cartoesAtivos.length > 0 && (
+                  <div className="flex flex-wrap items-center gap-1.5 pl-7">
+                    <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+                      <CreditCard className="size-3" /> Cartão:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => updateContaCartao.mutate({ contaId: c.id, cartaoId: null })}
+                      className={`rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                        !c.cartaoId
+                          ? "border-primary bg-primary/10 text-foreground"
+                          : "bg-secondary text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      Nenhum
+                    </button>
+                    {cartoesAtivos.map((cartao) => (
+                      <button
+                        key={cartao.id}
+                        type="button"
+                        onClick={() =>
+                          updateContaCartao.mutate({
+                            contaId: c.id,
+                            cartaoId: c.cartaoId === cartao.id ? null : cartao.id,
+                          })
+                        }
+                        className={`flex items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] transition-colors ${
+                          c.cartaoId === cartao.id
+                            ? "border-primary bg-primary/10 text-foreground"
+                            : "bg-secondary text-muted-foreground hover:text-foreground"
+                        }`}
+                      >
+                        <span
+                          className="size-1.5 rounded-full"
+                          style={{ backgroundColor: cartao.cor }}
+                        />
+                        {cartao.nome}
+                      </button>
+                    ))}
+                  </div>
+                )}
                 {c.pago && (
                   <div className="grid grid-cols-2 gap-2 pl-7">
                     <div className="space-y-1">
@@ -288,7 +345,11 @@ function Contas() {
                     />
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={salvarEdicaoAss} disabled={updateAssinatura.isPending}>
+                    <Button
+                      size="sm"
+                      onClick={salvarEdicaoAss}
+                      disabled={updateAssinatura.isPending}
+                    >
                       <Check className="size-4" /> Salvar
                     </Button>
                     <Button

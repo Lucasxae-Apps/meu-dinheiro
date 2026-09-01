@@ -3,8 +3,13 @@ import { useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { Pie, PieChart, Cell } from "recharts";
 import { Bar, PageHeader, Section, Stat } from "@/components/fin";
-import { ChartContainer, ChartTooltip, ChartTooltipContent, type ChartConfig } from "@/components/ui/chart";
-import { brl, HOBBY_REFERENCIA, nomeMes, type Lancamento } from "@/lib/finance";
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from "@/components/ui/chart";
+import { brl, faturaPorCartao, HOBBY_REFERENCIA, nomeMes, type Lancamento } from "@/lib/finance";
 import { useMes } from "@/lib/mes-context";
 import {
   useEntradas,
@@ -13,7 +18,9 @@ import {
   useContasFixas,
   useConfiguracoes,
   useAssinaturas,
+  useCartoes,
 } from "@/lib/hooks";
+import { useHobbyCompras } from "@/lib/hooks/use-hobby";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -27,7 +34,8 @@ export const Route = createFileRoute("/")({
       { property: "og:title", content: "Visão geral — Controle financeiro pessoal" },
       {
         property: "og:description",
-        content: "Entradas, comprometido, livre pra gastar e progresso dos investimentos em uma tela.",
+        content:
+          "Entradas, comprometido, livre pra gastar e progresso dos investimentos em uma tela.",
       },
     ],
   }),
@@ -44,6 +52,8 @@ function Index() {
   const { data: contas = [], isLoading: lc } = useContasFixas(mes);
   const { data: config } = useConfiguracoes();
   const { data: assinaturas = [] } = useAssinaturas();
+  const { data: cartoes = [] } = useCartoes();
+  const { data: hobbyCompras = [] } = useHobbyCompras(mes);
 
   const isLoading = le || ll || li || lc;
 
@@ -53,7 +63,6 @@ function Index() {
     c.id === "assinaturas" ? { ...c, valor: totalAssinaturas } : c,
   );
   const entradasOficiais = entradas.filter((e) => e.oficial).reduce((a, e) => a + e.valor, 0);
-  const mesada = entradas.filter((e) => !e.oficial).reduce((a, e) => a + e.valor, 0);
   const totalInvestimentos = investimentos.reduce((a, i) => a + i.aporteMensal, 0);
   const investimentosSemAluguel = investimentos
     .filter((i) => !i.origemAluguel)
@@ -73,6 +82,39 @@ function Index() {
   const restante = livre - gasto;
   const usadoPct = livre > 0 ? (gasto / livre) * 100 : 0;
 
+  const faturas = useMemo(() => faturaPorCartao(lancamentos), [lancamentos]);
+  const totalCredito = Array.from(faturas.values()).reduce((a, v) => a + v, 0);
+
+  // Divisão do hobby: agrupa as compras do mês por categoria (singles, packs, etc.)
+  const hobbyBreakdown = useMemo(() => {
+    const rotulos: Record<string, string> = {
+      singles: "Singles",
+      packs: "Packs",
+      acessorios: "Acessórios",
+      frete: "Frete",
+      outros: "Outros",
+    };
+    const cores: Record<string, string> = {
+      singles: "#3b82f6",
+      packs: "#a855f7",
+      acessorios: "#f59e0b",
+      frete: "#6b7280",
+      outros: "#ec4899",
+    };
+    const mapa = new Map<string, number>();
+    for (const c of hobbyCompras) mapa.set(c.categoria, (mapa.get(c.categoria) ?? 0) + c.valor);
+    const itens = Array.from(mapa.entries())
+      .map(([cat, valor]) => ({
+        cat,
+        label: rotulos[cat] ?? cat,
+        cor: cores[cat] ?? "#6b7280",
+        valor,
+      }))
+      .sort((a, b) => b.valor - a.valor);
+    const total = itens.reduce((a, i) => a + i.valor, 0);
+    return { itens, total };
+  }, [hobbyCompras]);
+
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-16">
@@ -88,13 +130,19 @@ function Index() {
       {/* Stats grid: 2 cols mobile, 4 cols desktop */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat label="Entradas do mês" value={entradasOficiais} hint="Sem a mesada" />
-        <Stat label="Comprometido" value={comprometido} hint="Investimentos + contas fixas" />
-        <Stat label="Livre pra gastar" value={livre} hint="Teto do mês" />
+        <Stat label="Investimentos" value={totalInvestimentos} hint="Aportes planejados do mês" />
+        <Stat label="Contas fixas" value={totalContas} hint="Total das contas do mês" />
         <Stat
-          label="Já gasto"
-          value={gasto}
-          tone={gasto > livre ? "destructive" : "default"}
-          hint={`${lancamentos.length} lançamento(s) · hobby fora do teto`}
+          label="Livre pra gastar"
+          value={livre}
+          hint={
+            <>
+              Teto do mês · já foram{" "}
+              <span className={gasto > livre ? "text-destructive" : "text-foreground"}>
+                {brl(gasto)}
+              </span>
+            </>
+          }
         />
       </div>
 
@@ -104,7 +152,10 @@ function Index() {
         <div className="space-y-8">
           <Section title="Quanto ainda resta" description={`${brl(gasto)} de ${brl(livre)} usados`}>
             <div className="space-y-3 rounded-xl border bg-card p-4">
-              <Bar value={usadoPct} tone={usadoPct > 100 ? "destructive" : usadoPct > 80 ? "warn" : "primary"} />
+              <Bar
+                value={usadoPct}
+                tone={usadoPct > 100 ? "destructive" : usadoPct > 80 ? "warn" : "primary"}
+              />
               <div className="flex items-baseline justify-between">
                 <span className="text-xs text-muted-foreground">Restante</span>
                 <span
@@ -114,8 +165,9 @@ function Index() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Hobby (cards F1) neste mês: <span className="num">{brl(gastoHobby)}</span> — sai da mesada,
-                não desconta do teto. Referência de {brl(HOBBY_REFERENCIA)}, sem limite travado.
+                Hobby (cards F1) neste mês: <span className="num">{brl(gastoHobby)}</span> — sai da
+                mesada, não desconta do teto. Referência de {brl(HOBBY_REFERENCIA)}, sem limite
+                travado.
               </p>
             </div>
           </Section>
@@ -154,7 +206,9 @@ function Index() {
                   >
                     {c.nome}
                   </span>
-                  <span className={`num text-sm ${c.pago ? "text-muted-foreground" : "font-semibold"}`}>
+                  <span
+                    className={`num text-sm ${c.pago ? "text-muted-foreground" : "font-semibold"}`}
+                  >
                     {brl(c.valor)}
                   </span>
                   {c.pago && c.pagoEm && (
@@ -173,20 +227,101 @@ function Index() {
               <GastosChart lancamentos={lancamentos} />
             </Section>
           )}
+
+          {/* Gastos por cartão */}
+          {faturas.size > 0 && (
+            <Section title="Gastos por cartão" description={`${brl(totalCredito)} no crédito`}>
+              <div className="space-y-2 rounded-xl border bg-card p-4">
+                {cartoes
+                  .filter((c) => (faturas.get(c.id) ?? 0) > 0)
+                  .sort((a, b) => (faturas.get(b.id) ?? 0) - (faturas.get(a.id) ?? 0))
+                  .map((c) => {
+                    const total = faturas.get(c.id) ?? 0;
+                    const pct = totalCredito > 0 ? (total / totalCredito) * 100 : 0;
+                    return (
+                      <div key={c.id} className="space-y-1">
+                        <div className="flex items-center gap-2 text-sm">
+                          <span
+                            className="size-2.5 rounded-full"
+                            style={{ backgroundColor: c.cor }}
+                          />
+                          <span className="flex-1 truncate">{c.nome}</span>
+                          <span className="num font-medium">{brl(total)}</span>
+                        </div>
+                        <div className="h-1.5 w-full overflow-hidden rounded-full bg-secondary">
+                          <div
+                            className="h-full rounded-full transition-all"
+                            style={{ width: `${pct}%`, backgroundColor: c.cor }}
+                          />
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </Section>
+          )}
         </div>
 
-        {/* Coluna 3: Fora do orçamento / mesada */}
+        {/* Coluna 3: Divisão do hobby */}
         <div className="space-y-8 md:col-span-2 xl:col-span-1">
-          <Section title="Fora do orçamento oficial" description="Bônus à parte, nunca base do mês">
-            <div className="rounded-xl border border-dashed bg-card/50 p-4 text-sm">
+          <Section
+            title="Divisão do hobby"
+            description={
+              hobbyBreakdown.total > 0
+                ? `${brl(hobbyBreakdown.total)} em compras · sai da mesada`
+                : "Sai da mesada, não desconta do teto"
+            }
+            action={
+              <Link to="/hobby" className="text-xs font-medium text-primary">
+                Ver hobby
+              </Link>
+            }
+          >
+            <div className="space-y-3 rounded-xl border bg-card p-4">
               <div className="flex items-baseline justify-between">
-                <span className="text-muted-foreground">Mesada</span>
-                <span className="num font-semibold">{brl(mesada)}</span>
+                <span className="text-xs text-muted-foreground">Total no mês</span>
+                <span className="num text-2xl font-semibold">
+                  {brl(hobbyBreakdown.total || gastoHobby)}
+                </span>
               </div>
-              <p className="mt-2 text-xs text-muted-foreground">
-                Cobre a nutricionista (R$ 172,00) e o hobby inteiro (R$ 300,00) — sobram R$ 28,00. Não entra em
-                entradas nem em nenhum cálculo do teto.
-              </p>
+
+              {hobbyBreakdown.itens.length > 0 ? (
+                <>
+                  {/* Barra empilhada da divisão */}
+                  <div className="flex h-2 w-full overflow-hidden rounded-full bg-secondary">
+                    {hobbyBreakdown.itens.map((i) => (
+                      <div
+                        key={i.cat}
+                        className="h-full"
+                        style={{
+                          width: `${(i.valor / hobbyBreakdown.total) * 100}%`,
+                          backgroundColor: i.cor,
+                        }}
+                      />
+                    ))}
+                  </div>
+                  <ul className="space-y-1.5">
+                    {hobbyBreakdown.itens.map((i) => {
+                      const pct = (i.valor / hobbyBreakdown.total) * 100;
+                      return (
+                        <li key={i.cat} className="flex items-center gap-2 text-xs">
+                          <span
+                            className="size-2.5 rounded-full"
+                            style={{ backgroundColor: i.cor }}
+                          />
+                          <span className="flex-1 text-muted-foreground">{i.label}</span>
+                          <span className="num font-medium">{pct.toFixed(0)}%</span>
+                          <span className="num text-muted-foreground">{brl(i.valor)}</span>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  Sem compras de hobby registradas neste mês. Referência de {brl(HOBBY_REFERENCIA)}.
+                </p>
+              )}
             </div>
           </Section>
         </div>
@@ -220,10 +355,18 @@ function SalarioChart({
   total: number;
 }) {
   const data = [
-    { name: "investimentos", value: investimentos, pct: total > 0 ? ((investimentos / total) * 100).toFixed(1) : "0" },
+    {
+      name: "investimentos",
+      value: investimentos,
+      pct: total > 0 ? ((investimentos / total) * 100).toFixed(1) : "0",
+    },
     { name: "viagem", value: viagem, pct: total > 0 ? ((viagem / total) * 100).toFixed(1) : "0" },
     { name: "contas", value: contas, pct: total > 0 ? ((contas / total) * 100).toFixed(1) : "0" },
-    { name: "livre", value: Math.max(0, livre), pct: total > 0 ? ((Math.max(0, livre) / total) * 100).toFixed(1) : "0" },
+    {
+      name: "livre",
+      value: Math.max(0, livre),
+      pct: total > 0 ? ((Math.max(0, livre) / total) * 100).toFixed(1) : "0",
+    },
   ];
 
   return (
@@ -240,7 +383,14 @@ function SalarioChart({
               />
             }
           />
-          <Pie data={data} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} strokeWidth={2}>
+          <Pie
+            data={data}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={50}
+            outerRadius={80}
+            strokeWidth={2}
+          >
             {data.map((entry, idx) => (
               <Cell key={entry.name} fill={SALARIO_COLORS[idx]} />
             ))}
@@ -250,8 +400,13 @@ function SalarioChart({
       <ul className="mt-3 space-y-1.5">
         {data.map((d, idx) => (
           <li key={d.name} className="flex items-center gap-2 text-xs">
-            <span className="size-2.5 rounded-full" style={{ backgroundColor: SALARIO_COLORS[idx] }} />
-            <span className="flex-1 text-muted-foreground">{salarioChartConfig[d.name]?.label}</span>
+            <span
+              className="size-2.5 rounded-full"
+              style={{ backgroundColor: SALARIO_COLORS[idx] }}
+            />
+            <span className="flex-1 text-muted-foreground">
+              {salarioChartConfig[d.name]?.label}
+            </span>
             <span className="num font-medium">{d.pct}%</span>
             <span className="num text-muted-foreground">{brl(d.value)}</span>
           </li>
@@ -315,7 +470,14 @@ function GastosChart({ lancamentos }: { lancamentos: Lancamento[] }) {
               />
             }
           />
-          <Pie data={chartData} dataKey="value" nameKey="name" innerRadius={50} outerRadius={80} strokeWidth={2}>
+          <Pie
+            data={chartData}
+            dataKey="value"
+            nameKey="name"
+            innerRadius={50}
+            outerRadius={80}
+            strokeWidth={2}
+          >
             {chartData.map((entry) => (
               <Cell key={entry.name} fill={entry.fill} />
             ))}

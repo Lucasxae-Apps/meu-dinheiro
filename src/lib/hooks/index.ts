@@ -1,4 +1,10 @@
-export { useEntradas, useUpsertEntrada, useDeleteEntrada, useSetEntradaMes, useResetEntradaMes } from "./use-entradas";
+export {
+  useEntradas,
+  useUpsertEntrada,
+  useDeleteEntrada,
+  useSetEntradaMes,
+  useResetEntradaMes,
+} from "./use-entradas";
 export {
   useLancamentos,
   useAddLancamento,
@@ -11,6 +17,7 @@ export {
   useUpdatePagoEm,
   useUpsertContaFixa,
   useUpdateValorReal,
+  useUpdateContaCartao,
 } from "./use-contas";
 export type { ContaComStatus } from "./use-contas";
 export {
@@ -19,6 +26,9 @@ export {
   useUpsertInvestimento,
   useSetInvestimentoMes,
   useResetInvestimentoMes,
+  useAportesFeitos,
+  useMarcarAporte,
+  useDesmarcarAporte,
 } from "./use-investimentos";
 export {
   useConfiguracoes,
@@ -35,3 +45,4 @@ export {
   useDeleteAssinatura,
 } from "./use-assinaturas";
 export type { Assinatura } from "./use-assinaturas";
+export { useCartoes, useUpsertCartao, useDeleteCartao } from "./use-cartoes";
