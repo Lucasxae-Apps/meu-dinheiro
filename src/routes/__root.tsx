@@ -8,7 +8,7 @@ import {
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
-import { LayoutDashboard, ListPlus, PiggyBank, Receipt, Gamepad2 } from "lucide-react";
+import { LayoutDashboard, ListPlus, PiggyBank, Receipt, Gamepad2, Wallet } from "lucide-react";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -47,7 +47,9 @@ function ErrorComponent({ error, reset }: { error: Error; reset: () => void }) {
   return (
     <div className="flex min-h-screen items-center justify-center bg-background px-4">
       <div className="max-w-md text-center">
-        <h1 className="text-xl font-semibold tracking-tight text-foreground">Essa tela não carregou</h1>
+        <h1 className="text-xl font-semibold tracking-tight text-foreground">
+          Essa tela não carregou
+        </h1>
         <p className="mt-2 text-sm text-muted-foreground">
           Algo quebrou aqui. Tenta de novo ou volta pro início.
         </p>
@@ -91,7 +93,8 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
         rel: "stylesheet",
         href: "https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap",
       },
-      { rel: "icon", href: "/favicon.ico", type: "image/x-icon" },
+      { rel: "icon", href: "/favicon.svg", type: "image/svg+xml" },
+      { rel: "icon", href: "/favicon.ico", sizes: "any" },
     ],
   }),
   shellComponent: RootShell,
@@ -116,6 +119,7 @@ function RootShell({ children }: { children: ReactNode }) {
 
 const tabs = [
   { to: "/", label: "Visão geral", icon: LayoutDashboard },
+  { to: "/entradas", label: "Entradas", icon: Wallet },
   { to: "/lancamentos", label: "Lançamentos", icon: ListPlus },
   { to: "/investimentos", label: "Investimentos", icon: PiggyBank },
   { to: "/contas", label: "Contas fixas", icon: Receipt },
@@ -151,9 +155,7 @@ function RootComponent() {
                 </Link>
               ))}
             </nav>
-            <div className="px-5 py-4 text-[10px] text-muted-foreground">
-              Dados salvos na nuvem
-            </div>
+            <div className="px-5 py-4 text-[10px] text-muted-foreground">Dados salvos na nuvem</div>
           </aside>
 
           {/* Main content */}
@@ -170,7 +172,7 @@ function RootComponent() {
 
           {/* Bottom nav — mobile only */}
           <nav className="fixed inset-x-0 bottom-0 border-t bg-card/95 backdrop-blur md:hidden">
-            <div className="mx-auto grid max-w-2xl grid-cols-5">
+            <div className="mx-auto grid max-w-2xl grid-cols-6">
               {tabs.map(({ to, label, icon: Icon }) => (
                 <Link
                   key={to}

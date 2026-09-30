@@ -3,13 +3,21 @@ import { useMemo } from "react";
 import { Loader2 } from "lucide-react";
 import { Pie, PieChart, Cell } from "recharts";
 import { Bar, PageHeader, Section, Stat } from "@/components/fin";
+import { InvestimentoTicker } from "@/components/investimento-ticker";
 import {
   ChartContainer,
   ChartTooltip,
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import { brl, faturaPorCartao, HOBBY_REFERENCIA, nomeMes, type Lancamento } from "@/lib/finance";
+import {
+  brl,
+  faturaPorCartao,
+  HOBBY_REFERENCIA,
+  META_GRANDE,
+  nomeMes,
+  type Lancamento,
+} from "@/lib/finance";
 import { useMes } from "@/lib/mes-context";
 import {
   useEntradas,
@@ -19,6 +27,7 @@ import {
   useConfiguracoes,
   useAssinaturas,
   useCartoes,
+  useCotacoes,
 } from "@/lib/hooks";
 import { useHobbyCompras } from "@/lib/hooks/use-hobby";
 
@@ -54,31 +63,50 @@ function Index() {
   const { data: assinaturas = [] } = useAssinaturas();
   const { data: cartoes = [] } = useCartoes();
   const { data: hobbyCompras = [] } = useHobbyCompras(mes);
+  const { data: cotacoes = [] } = useCotacoes();
 
   const isLoading = le || ll || li || lc;
+
+  const incluirAluguelNaMeta = config?.incluirAluguelNaMeta ?? true;
+  const acumuladoTotal = investimentos.reduce((a, i) => a + i.acumulado, 0);
+  const acumuladoAluguel = investimentos
+    .filter((i) => i.origemAluguel)
+    .reduce((a, i) => a + i.acumulado, 0);
+  const acumuladoMeta = incluirAluguelNaMeta ? acumuladoTotal : acumuladoTotal - acumuladoAluguel;
+  const metaPct = (acumuladoMeta / META_GRANDE) * 100;
+  const acumuladoReserva = investimentos
+    .filter((i) => i.id === "reserva")
+    .reduce((a, i) => a + i.acumulado, 0);
 
   // Cálculos derivados
   const totalAssinaturas = assinaturas.filter((a) => a.ativa).reduce((a, s) => a + s.valor, 0);
   const contasComAssinaturas = contas.map((c) =>
     c.id === "assinaturas" ? { ...c, valor: totalAssinaturas } : c,
   );
-  const entradasOficiais = entradas.filter((e) => e.oficial).reduce((a, e) => a + e.valor, 0);
-  const totalInvestimentos = investimentos.reduce((a, i) => a + i.aporteMensal, 0);
-  const investimentosSemAluguel = investimentos
-    .filter((i) => !i.origemAluguel)
-    .reduce((a, i) => a + i.aporteMensal, 0);
+  const entradasOficiais = entradas
+    .filter((e) => e.oficial && !e.vinculadaInvestimento)
+    .reduce((a, e) => a + e.valor, 0);
   const aporteViagem = investimentos
     .filter((i) => i.id === "italia")
     .reduce((a, i) => a + i.aporteMensal, 0);
-  const aporteInvestReal = investimentosSemAluguel - aporteViagem;
   const salario = entradas.find((e) => e.id === "salario")?.valor ?? entradasOficiais;
   const totalContas = contasComAssinaturas.reduce((a, c) => a + (c.valorReal ?? c.valor), 0);
-  const comprometido = totalInvestimentos + totalContas;
+
+  // "Livre pra gastar" = entradas oficiais do mês (salário + extras oficiais,
+  // tipo um pix avulso lançado só em outubro) menos 30% de investimento + viagem
+  // (aportes com origemSalario) menos contas fixas. Aluguel investido 100% em
+  // renda fixa e dividendos reinvestidos não contam — não são dinheiro livre.
+  const aporteSalario = investimentos
+    .filter((i) => i.origemSalario !== false)
+    .reduce((a, i) => a + i.aporteMensal, 0);
+  const comprometido = aporteSalario + totalContas;
   const livre = entradasOficiais - comprometido;
 
   const ehHobby = (l: Lancamento) => l.categoria.trim().toLowerCase() === HOBBY_CATEGORIA;
   const gastoHobby = lancamentos.filter(ehHobby).reduce((a, l) => a + l.valor, 0);
-  const gasto = lancamentos.filter((l) => !ehHobby(l)).reduce((a, l) => a + l.valor, 0);
+  // Sobra real considera TODO gasto do mês (incluindo hobby) — é dinheiro
+  // que saiu da conta de verdade, mesmo que informalmente "devesse" sair da mesada.
+  const gasto = lancamentos.reduce((a, l) => a + l.valor, 0);
   const restante = livre - gasto;
   const usadoPct = livre > 0 ? (gasto / livre) * 100 : 0;
 
@@ -127,10 +155,17 @@ function Index() {
     <div className="space-y-8">
       <PageHeader title="Visão geral" subtitle={`${nomeMes(mes)} · dados salvos na nuvem`} />
 
+      <InvestimentoTicker
+        acumuladoTotal={acumuladoTotal}
+        metaPct={metaPct}
+        acumuladoReserva={acumuladoReserva}
+        cotacoes={cotacoes}
+      />
+
       {/* Stats grid: 2 cols mobile, 4 cols desktop */}
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-        <Stat label="Entradas do mês" value={entradasOficiais} hint="Sem a mesada" />
-        <Stat label="Investimentos" value={totalInvestimentos} hint="Aportes planejados do mês" />
+        <Stat label="Salário" value={salario} hint="Base do teto do mês" />
+        <Stat label="Investimentos" value={aporteSalario} hint="30% + viagem, saem do salário" />
         <Stat label="Contas fixas" value={totalContas} hint="Total das contas do mês" />
         <Stat
           label="Livre pra gastar"
@@ -165,21 +200,21 @@ function Index() {
                 </span>
               </div>
               <p className="text-xs text-muted-foreground">
-                Hobby (cards F1) neste mês: <span className="num">{brl(gastoHobby)}</span> — sai da
-                mesada, não desconta do teto. Referência de {brl(HOBBY_REFERENCIA)}, sem limite
-                travado.
+                Inclui hobby (cards F1) do mês: <span className="num">{brl(gastoHobby)}</span> —
+                conta como gasto real, mesmo que a intenção seja cobrir com a mesada. Referência de{" "}
+                {brl(HOBBY_REFERENCIA)}, sem limite travado.
               </p>
             </div>
           </Section>
 
-          {/* Gráfico: distribuição do salário */}
-          <Section title="Pra onde vai o salário" description="% de cada destino">
+          {/* Gráfico: distribuição das entradas oficiais do mês */}
+          <Section title="Pra onde vai a renda do mês" description="% de cada destino">
             <SalarioChart
-              investimentos={aporteInvestReal}
+              investimentos={aporteSalario - aporteViagem}
               viagem={aporteViagem}
               contas={totalContas}
-              livre={salario - investimentosSemAluguel - totalContas}
-              total={salario}
+              livre={livre}
+              total={entradasOficiais}
             />
           </Section>
         </div>

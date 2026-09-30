@@ -46,3 +46,11 @@ export {
 } from "./use-assinaturas";
 export type { Assinatura } from "./use-assinaturas";
 export { useCartoes, useUpsertCartao, useDeleteCartao } from "./use-cartoes";
+export {
+  useInvestimentoMovimentos,
+  useAddMovimento,
+  useDeleteMovimento,
+} from "./use-investimento-movimentos";
+export type { InvestimentoMovimento, TipoMovimento } from "./use-investimento-movimentos";
+export { useCotacoes } from "./use-cotacoes";
+export type { Cotacao } from "./use-cotacoes";

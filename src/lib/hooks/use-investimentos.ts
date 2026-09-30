@@ -21,6 +21,7 @@ export function useInvestimentos(mes?: string) {
           acumulado: Number(r["acumulado"]),
           alvo: r["alvo"] != null ? Number(r["alvo"]) : undefined,
           origemAluguel: r["origem_aluguel"] ?? undefined,
+          origemSalario: r["origem_salario"] ?? true,
           nota: r["nota"] ?? undefined,
         }));
       }
@@ -50,6 +51,7 @@ export function useInvestimentos(mes?: string) {
           acumulado: Number(r["acumulado"]),
           alvo: r["alvo"] != null ? Number(r["alvo"]) : undefined,
           origemAluguel: r["origem_aluguel"] ?? undefined,
+          origemSalario: r["origem_salario"] ?? true,
           nota: override?.["nota"] ?? r["nota"] ?? undefined,
         };
       });
@@ -116,6 +118,7 @@ export function useUpdateInvestimento() {
           acumulado: inv.acumulado,
           alvo: inv.alvo ?? null,
           origem_aluguel: inv.origemAluguel ?? false,
+          origem_salario: inv.origemSalario ?? true,
           nota: inv.nota ?? null,
         })
         .eq("id", inv.id);
@@ -136,6 +139,7 @@ export function useUpsertInvestimento() {
         acumulado: inv.acumulado,
         alvo: inv.alvo ?? null,
         origem_aluguel: inv.origemAluguel ?? false,
+        origem_salario: inv.origemSalario ?? true,
         nota: inv.nota ?? null,
       });
       if (error) throw error;

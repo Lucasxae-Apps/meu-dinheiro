@@ -5,6 +5,8 @@ export type Entrada = {
   nome: string;
   valor: number;
   oficial: boolean;
+  /** Já entra como aporte em Investimentos (ex: aluguel → renda fixa) — não soma no teto oficial. */
+  vinculadaInvestimento?: boolean | undefined;
   nota?: string | undefined;
 };
 export type Investimento = {
@@ -14,6 +16,8 @@ export type Investimento = {
   acumulado: number;
   alvo?: number | undefined;
   origemAluguel?: boolean | undefined;
+  /** Se o aporte sai do salário (30%, viagem) ou de outra entrada (aluguel, dividendos). Default true. */
+  origemSalario?: boolean | undefined;
   nota?: string | undefined;
 };
 export type ContaFixa = {

@@ -20,6 +20,7 @@ export function useEntradas(mes?: string) {
           nome: r["nome"],
           valor: Number(r["valor"]),
           oficial: r["oficial"],
+          vinculadaInvestimento: r["vinculada_investimento"] ?? false,
           nota: r["nota"] ?? undefined,
         }));
       }
@@ -31,9 +32,7 @@ export function useEntradas(mes?: string) {
         .eq("mes", mes);
       if (e2) throw e2;
 
-      const overrideMap = new Map(
-        (overrides ?? []).map((o) => [o["entrada_id"], o]),
-      );
+      const overrideMap = new Map((overrides ?? []).map((o) => [o["entrada_id"], o]));
 
       return (entradas ?? []).map((r) => {
         const override = overrideMap.get(r["id"]);
@@ -42,6 +41,7 @@ export function useEntradas(mes?: string) {
           nome: r["nome"],
           valor: override ? Number(override["valor"]) : Number(r["valor"]),
           oficial: r["oficial"],
+          vinculadaInvestimento: r["vinculada_investimento"] ?? false,
           nota: override?.["nota"] ?? r["nota"] ?? undefined,
         };
       });
@@ -53,7 +53,17 @@ export function useEntradas(mes?: string) {
 export function useSetEntradaMes() {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: async ({ entradaId, mes, valor, nota }: { entradaId: string; mes: string; valor: number; nota?: string }) => {
+    mutationFn: async ({
+      entradaId,
+      mes,
+      valor,
+      nota,
+    }: {
+      entradaId: string;
+      mes: string;
+      valor: number;
+      nota?: string;
+    }) => {
       const { error } = await supabase.from("entradas_mes").upsert(
         {
           entrada_id: entradaId,
@@ -89,15 +99,14 @@ export function useUpsertEntrada() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (entrada: Entrada) => {
-      const { error } = await supabase
-        .from("entradas")
-        .upsert({
-          id: entrada.id,
-          nome: entrada.nome,
-          valor: entrada.valor,
-          oficial: entrada.oficial,
-          nota: entrada.nota ?? null,
-        });
+      const { error } = await supabase.from("entradas").upsert({
+        id: entrada.id,
+        nome: entrada.nome,
+        valor: entrada.valor,
+        oficial: entrada.oficial,
+        vinculada_investimento: entrada.vinculadaInvestimento ?? false,
+        nota: entrada.nota ?? null,
+      });
       if (error) throw error;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["entradas"] }),

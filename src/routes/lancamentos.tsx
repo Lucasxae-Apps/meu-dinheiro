@@ -90,20 +90,28 @@ function Lancamentos() {
 
   // Cálculos derivados
   const totalAssinaturas = assinaturas.filter((a) => a.ativa).reduce((a, s) => a + s.valor, 0);
-  const entradasOficiais = entradas.filter((e) => e.oficial).reduce((a, e) => a + e.valor, 0);
-  const totalInvestimentos = investimentos.reduce((a, i) => a + i.aporteMensal, 0);
+  const entradasOficiais = entradas
+    .filter((e) => e.oficial && !e.vinculadaInvestimento)
+    .reduce((a, e) => a + e.valor, 0);
   const totalContas = contas.reduce(
-    (a, c) => (c.id === "assinaturas" ? a + totalAssinaturas : a + c.valor),
+    (a, c) => (c.id === "assinaturas" ? a + totalAssinaturas : a + (c.valorReal ?? c.valor)),
     0,
   );
-  const livre = entradasOficiais - totalInvestimentos - totalContas;
+  // Livre = entradas oficiais do mês (salário + extras oficiais, tipo um pix
+  // avulso lançado só nesse mês) menos o que sai pro salário (30% + viagem) e
+  // contas fixas. Aluguel/dividendos reinvestidos não contam — pass-through.
+  const aporteSalario = investimentos
+    .filter((i) => i.origemSalario !== false)
+    .reduce((a, i) => a + i.aporteMensal, 0);
+  const livre = entradasOficiais - aporteSalario - totalContas;
 
   const ehHobby = (l: Lancamento) => l.categoria.trim().toLowerCase() === HOBBY_CATEGORIA;
   const gastoSemHobby = lancamentos.filter((l) => !ehHobby(l)).reduce((a, l) => a + l.valor, 0);
   const gastoHobby = lancamentos.filter(ehHobby).reduce((a, l) => a + l.valor, 0);
   const gastoTotal = gastoSemHobby + gastoHobby;
-  const restante = livre - gastoSemHobby;
-  const usadoPct = livre > 0 ? Math.round((gastoSemHobby / livre) * 100) : 0;
+  // A sobra do mês considera TODO gasto (incl. hobby) — é dinheiro que saiu de verdade.
+  const restante = livre - gastoTotal;
+  const usadoPct = livre > 0 ? Math.round((gastoTotal / livre) * 100) : 0;
 
   // Faturas por cartão
   const faturas = useMemo(() => faturaPorCartao(lancamentos), [lancamentos]);
@@ -180,9 +188,9 @@ function Lancamentos() {
       <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <Stat
           label="Já gasto"
-          value={gastoSemHobby}
-          hint={`${usadoPct}% do teto · sem o hobby`}
-          tone={gastoSemHobby > livre ? "destructive" : "default"}
+          value={gastoTotal}
+          hint={`${usadoPct}% do teto · hobby incluso`}
+          tone={gastoTotal > livre ? "destructive" : "default"}
         />
         <Stat
           label="Quanto falta"
@@ -196,9 +204,9 @@ function Lancamentos() {
           hint={`${faturas.size} cartão(ões) com fatura`}
         />
         <Stat
-          label="Gasto total"
-          value={gastoTotal}
-          hint={`${lancamentos.length} lançamento(s) · hobby incluso`}
+          label="Hobby (cards F1)"
+          value={gastoHobby}
+          hint={`${lancamentos.length} lançamento(s) no mês`}
           tone="muted"
         />
       </div>
